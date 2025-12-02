@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Históricos de Inventario - Omnilife</title>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(120deg, #e0e7ff 0%, #f8fafc 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 40px auto 0 auto;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(60,72,100,0.10);
+            overflow: hidden;
+            padding: 32px 24px 24px 24px;
+        }
+        h1 {
+            color: #6366f1;
+            font-size: 2rem;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+        .volver {
+            display: inline-block;
+            margin-bottom: 18px;
+            color: #6366f1;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: color 0.2s;
+        }
+        .volver:hover { color: #374151; }
+        .date-select {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+            position: relative;
+        }
+        .date-select label {
+            font-weight: 600;
+            color: #6366f1;
+            font-size: 1.05rem;
+        }
+        .date-select input[type="date"] {
+            padding: 8px 14px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: #f9fafb;
+            transition: all 0.2s;
+            height: 40px;
+            min-width: 180px;
+            box-sizing: border-box;
+        }
+        .date-select button {
+            padding: 8px 16px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            height: 40px;
+            min-width: 120px;
+            transition: all 0.2s;
+        }
+        .date-select button:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+        .info {
+            margin-bottom: 18px;
+            color: #374151;
+            font-size: 1.08rem;
+        }
+        .table-container {
+            max-height: 540px;
+            overflow-y: auto;
+            border-radius: 14px;
+            box-shadow: 0 2px 12px rgba(60,72,100,0.06);
+            background: #fff;
+            margin-bottom: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+        th {
+            background: #6366f1;
+            color: #fff;
+            padding: 11px 8px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.93rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td {
+            padding: 9px 7px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+            font-size: 0.98rem;
+        }
+        tr:nth-child(even) {background: #f9fafb;}
+        .code-cell {font-family:'JetBrains Mono','Courier New',monospace;font-weight:600;color:#6366f1;font-size:0.93rem;}
+        .product-cell {font-weight:500;color:#22223b;max-width:300px;word-wrap:break-word;}
+        .no-data {
+            color: #ef4444;
+            text-align: center;
+            font-size: 1.1rem;
+            margin-top: 32px;
+        }
+        .btn-exportar-excel {
+            background: linear-gradient(90deg, #60a5fa 0%, #6366f1 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(60,72,100,0.08);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.18s, transform 0.18s;
+            margin-left: 10px;
+            height: 40px;
+            min-width: 180px;
+            box-sizing: border-box;
+        }
+        .btn-exportar-excel:hover, .btn-exportar-excel:focus {
+            background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+            color: #fff;
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 4px 16px rgba(60,72,100,0.13);
+        }
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(60,72,100,0.18);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+        .loading.show {display:flex;}
+        .spinner {
+            width: 50px; height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+        .footer {
+            background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+            color: #fff;
+            padding: 18px 32px;
+            text-align: center;
+            border-bottom-left-radius: 14px;
+            border-bottom-right-radius: 14px;
+            font-size: 1rem;
+            letter-spacing: 0.2px;
+            margin-top: 0;
+        }
+        .burguer-top {
+            display: flex;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+        .menu-hamburguesa {
+            position: static;
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            min-height: 38px;
+            background: rgba(99,102,241,0.13);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 110;
+            border: none;
+            transition: background 0.2s;
+        }
+        .menu-hamburguesa:active {
+            background: rgba(99,102,241,0.22);
+        }
+        .menu-hamburguesa span, .menu-hamburguesa span:before, .menu-hamburguesa span:after {
+            display: block;
+            background: #6366f1;
+            height: 3px;
+            width: 22px;
+            border-radius: 2px;
+            position: absolute;
+            transition: all 0.3s;
+        }
+        .menu-hamburguesa span {
+            position: relative;
+        }
+        .menu-hamburguesa span:before {
+            content: '';
+            top: -7px;
+            position: absolute;
+        }
+        .menu-hamburguesa span:after {
+            content: '';
+            top: 7px;
+            position: absolute;
+        }
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -180px;
+            width: 160px;
+            height: 100%;
+            background: linear-gradient(135deg,#6366f1 0%,#60a5fa 100%);
+            color: #fff;
+            box-shadow: 2px 0 16px rgba(60,72,100,0.10);
+            z-index: 2000;
+            transition: left 0.3s;
+            padding-top: 50px;
+            border-top-right-radius: 18px;
+            border-bottom-right-radius: 18px;
+        }
+        .side-menu.open {
+            left: 0;
+        }
+        .side-menu ul {
+            list-style: none;
+            padding: 0 0 0 16px;
+        }
+        .side-menu li {
+            margin-bottom: 18px;
+        }
+        .side-menu a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .side-menu a:hover {
+            color: #fbbf24;
+        }
+        .side-menu .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .side-menu .menu-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+            margin-bottom: 18px;
+            margin-left: 4px;
+        }
+        .tipo-historico-btns {
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+        .tipo-historico-btn {
+            padding: 10px 22px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1.08rem;
+            font-weight: 700;
+            cursor: pointer;
+            background: #e0e7ff;
+            color: #6366f1;
+            transition: background 0.18s, color 0.18s, transform 0.18s;
+            box-shadow: 0 2px 8px rgba(60,72,100,0.06);
+        }
+        .tipo-historico-btn.selected,
+        .tipo-historico-btn:hover {
+            background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+            color: #fff;
+            transform: translateY(-2px) scale(1.04);
+        }
+        .switch {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 28px;
+}
+.switch input {display:none;}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #e0e7ff;
+  transition: .4s;
+  border-radius: 34px;
+  box-shadow: 0 2px 8px rgba(60,72,100,0.06);
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background: linear-gradient(90deg, #6366f1 0%, #60a5fa 100%);
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background: #e0e7ff;
+}
+input:checked + .slider:before {
+  transform: translateX(28px);
+}
+        @media (max-width:700px) {
+            .container {padding: 12px;}
+            h1 {font-size: 1.2rem;}
+            .table-container {margin-bottom: 10px;}
+            th, td {font-size: 0.85rem;}
+            .side-menu {
+                width: 65vw;
+                min-width: 120px;
+                max-width: 220px;
+                left: -65vw;
+                border-radius: 0 0 14px 0;
+                padding-top: 40px;
+            }
+            .side-menu.open {
+                left: 0;
+            }
+            .side-menu .close-btn {
+                top: 8px;
+                right: 8px;
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+    <!-- Menú lateral -->
+    <nav class="side-menu" id="sideMenu">
+        <button class="close-btn" onclick="cerrarMenuLateral()" title="Cerrar menú">&times;</button>
+        <div class="menu-title">Menú</div>
+        <ul>
+            <li><a href="index.html" onclick="cerrarMenuLateral()">Inventario Diario</a></li>
+            <!-- <li><a href="historicos.html" onclick="cerrarMenuLateral()">Históricos</a></li> -->
+            <li><a href="Inventario%20General.html" onclick="cerrarMenuLateral()">Inventario General</a></li>
+        </ul>
+    </nav>
+    <div class="container">
+        <div class="burguer-top">
+            <button class="menu-hamburguesa" onclick="abrirMenuLateral()" title="Menú" aria-label="Abrir menú">
+                <span></span>
+            </button>
+        </div>
+        <h1>Históricos de Inventario</h1>
+        <div style="display:flex;justify-content:center;align-items:center;margin-bottom:28px;">
+    <span id="labelDiario" style="font-weight:700;color:#6366f1;font-size:1.08rem;margin-right:10px;">Inventario Diario</span>
+    <label class="switch">
+        <input type="checkbox" id="toggleTipoHistorico">
+        <span class="slider"></span>
+    </label>
+    <span id="labelGeneral" style="font-weight:700;color:#6366f1;font-size:1.08rem;margin-left:10px;">Inventario General</span>
+</div>
+        <!-- Inventario por Fecha -->
+        <div id="busquedaFecha" style="display:block;">
+            <div class="date-select">
+                <label for="fechaHist">Selecciona una fecha:</label>
+                <input type="date" id="fechaHist">
+                <button id="btnBuscarFecha">Buscar Registro</button>
+                <button id="btnExportarExcelFecha" class="btn-exportar-excel" style="display:none;">
+                    <span style="font-size:1.2em;vertical-align:middle;">📥</span>
+                    <span style="vertical-align:middle;">Exportar Excel</span>
+                </button>
+            </div>
+            <div id="infoHistFecha" class="info"></div>
+            <div class="table-container" id="tablaHistContainerFecha" style="display:none;">
+                <table id="tablaHistFecha">
+                    <thead>
+                        <tr>
+                            <th>Material</th>
+                            <th>Texto breve de material</th>
+                            <th>SAP</th>
+                            <th>Físico</th>
+                            <th>Display</th>
+                            <th>Merma</th>
+                            <th>Diferencias</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistBodyFecha"></tbody>
+                </table>
+                <div class="footer">
+                    <p style="margin:0;">&copy; 2025 Sistema de Inventario Físico - Omnilife. Todos los derechos reservados.</p>
+                </div>
+            </div>
+            <div class="no-data" id="noHistFecha" style="display:none;">No hay histórico para la fecha seleccionada.</div>
+        </div>
+        <!-- Inventario General -->
+        <div id="busquedaGeneral" style="display:none;">
+            <div class="date-select">
+                <label for="fechaGeneral">Selecciona una fecha:</label>
+                <input type="date" id="fechaGeneral">
+                <button id="btnBuscarGeneral">Buscar Registro</button>
+                <button id="btnExportarExcelGeneral" class="btn-exportar-excel" style="display:none;">
+                    <span style="font-size:1.2em;vertical-align:middle;">📥</span>
+                    <span style="vertical-align:middle;">Exportar Excel</span>
+                </button>
+            </div>
+            <div id="infoHistGeneral" class="info"></div>
+            <div class="table-container" id="tablaHistContainerGeneral" style="display:none;">
+                <table id="tablaHistGeneral">
+                    <thead>
+                        <tr>
+                            <th>Material</th>
+                            <th>Texto breve de material</th>
+                            <th>SAP</th>
+                            <th>Físico</th>
+                            <th>Display</th>
+                            <th>Merma</th>
+                            <th>Diferencias</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistBodyGeneral"></tbody>
+                </table>
+                <div class="footer">
+                    <p style="margin:0;">&copy; 2025 Sistema de Inventario Físico - Omnilife. Todos los derechos reservados.</p>
+                </div>
+            </div>
+            <div class="no-data" id="noHistGeneral" style="display:none;">No hay histórico general para la fecha seleccionada.</div>
+        </div>
+    </div>
+
+    <script>
+        // Menú lateral (idéntico a index.html)
+        function abrirMenuLateral() {
+            document.getElementById('sideMenu').classList.add('open');
+        }
+        function cerrarMenuLateral() {
+            document.getElementById('sideMenu').classList.remove('open');
+        }
+        // Cerrar menú al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('sideMenu');
+            const burger = document.querySelector('.menu-hamburguesa');
+            if (menu.classList.contains('open') && !menu.contains(e.target) && !burger.contains(e.target)) {
+                cerrarMenuLateral();
+            }
+        });
+
+        // Inicializa Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC0i3Btw_EhcRB-gwocAA3mHKQc2foE86w",
+            authDomain: "inventario-cedis-64eef.firebaseapp.com",
+            projectId: "inventario-cedis-64eef",
+            storageBucket: "inventario-cedis-64eef.appspot.com",
+            messagingSenderId: "730229452536",
+            appId: "1:730229452536:web:cb011c50d795253037150d",
+            measurementId: "G-G3X02X14X9"
+        };
+        
+        // Solo inicializa Firebase una vez
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase inicializado en historicos.html");
+        }
+        const db = firebase.firestore();
+
+        // Referencias a elementos DOM
+        const busquedaFecha = document.getElementById('busquedaFecha');
+        const busquedaGeneral = document.getElementById('busquedaGeneral');
+        const toggleTipoHistorico = document.getElementById('toggleTipoHistorico');
+
+        // Fecha
+        const fechaInputFecha = document.getElementById('fechaHist');
+        const btnBuscarFecha = document.getElementById('btnBuscarFecha');
+        const btnExportarFecha = document.getElementById('btnExportarExcelFecha');
+        const infoDivFecha = document.getElementById('infoHistFecha');
+        const tablaContainerFecha = document.getElementById('tablaHistContainerFecha');
+        const tablaBodyFecha = document.getElementById('tablaHistBodyFecha');
+        const noHistFecha = document.getElementById('noHistFecha');
+
+        // General
+        const fechaInputGeneral = document.getElementById('fechaGeneral');
+        const btnBuscarGeneral = document.getElementById('btnBuscarGeneral');
+        const btnExportarGeneral = document.getElementById('btnExportarExcelGeneral');
+        const infoDivGeneral = document.getElementById('infoHistGeneral');
+        const tablaContainerGeneral = document.getElementById('tablaHistContainerGeneral');
+        const tablaBodyGeneral = document.getElementById('tablaHistBodyGeneral');
+        const noHistGeneral = document.getElementById('noHistGeneral');
+
+        const loading = document.getElementById('loading');
+
+        // Variables globales para ambos históricos
+        let historicoActualFecha = null;
+        let historicoActualGeneral = null;
+
+        // Normaliza la fecha a yyyy-mm-dd
+        function normalizarFecha(fecha) {
+            if (!fecha) return "";
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
+                const [dd, mm, yyyy] = fecha.split('/');
+                return `${yyyy}-${mm}-${dd}`;
+            }
+            if (/^\d{4}\/\d{2}\/\d{2}$/.test(fecha)) {
+                return fecha.replace(/\//g, '-');
+            }
+            return fecha;
+        }
+
+        function showLoading(show) {
+            loading.classList.toggle("show", !!show);
+        }
+
+        // Toggle switch para cambiar tipo de histórico
+        toggleTipoHistorico.addEventListener('change', () => {
+        if (toggleTipoHistorico.checked) {
+            busquedaFecha.style.display = 'none';
+            busquedaGeneral.style.display = 'block';
+        } else {
+            busquedaFecha.style.display = 'block';
+            busquedaGeneral.style.display = 'none';
+        }
+    });
+
+        // Inicializa con Inventario Diario visible
+        busquedaFecha.style.display = 'block';
+        busquedaGeneral.style.display = 'none';
+
+        // Buscar histórico por fecha (inventario diario)
+        async function buscarHistoricoFecha() {
+            const fecha = fechaInputFecha.value;
+            if (!fecha) {
+                alert("Por favor selecciona una fecha para buscar.");
+                return;
+            }
+            
+            console.log("Buscando inventario diario para fecha:", fecha);
+            showLoading(true);
+            tablaBodyFecha.innerHTML = '';
+            infoDivFecha.innerHTML = '';
+            tablaContainerFecha.style.display = 'none';
+            noHistFecha.style.display = 'none';
+            btnExportarFecha.style.display = 'none';
+            historicoActualFecha = null;
+
+            try {
+                // El input date ya viene en formato yyyy-mm-dd
+                let fechaKey = fecha;
+                console.log("Fecha original del input:", fechaKey);
+                
+                // Lista de posibles formatos de documento en Firestore
+                const formatosPosibles = [
+                    fechaKey,                                    // 2025-08-10
+                    fechaKey.replace(/-/g, '/'),                // 2025/08/10
+                    fechaKey.split('-').reverse().join('/'),    // 10/08/2025
+                    fechaKey.split('-').reverse().join('-'),    // 10-08-2025
+                    fechaKey.split('-').map((part, index) => {  // 10/8/2025 (sin ceros)
+                        if (index === 0) return part;
+                        return parseInt(part).toString();
+                    }).reverse().join('/'),
+                    fechaKey.split('-').map((part, index) => {  // 8/10/2025 (mm/dd/yyyy)
+                        if (index === 0) return part;
+                        return parseInt(part).toString();
+                    }).slice(1).concat(fechaKey.split('-')[0]).join('/')
+                ];
+
+                console.log("Formatos a probar:", formatosPosibles);
+                
+                let encontrado = false;
+                let documentoEncontrado = null;
+                let claveEncontrada = null;
+                
+                // Probar cada formato
+                for (const formato of formatosPosibles) {
+                    console.log("Probando formato:", formato);
+                    try {
+                        const docRef = db.collection("inventario_diario").doc(formato);
+                        const docSnap = await docRef.get();
+                        
+                        if (docSnap.exists) {
+                            console.log("✅ Documento encontrado con formato:", formato);
+                            documentoEncontrado = docSnap.data();
+                            claveEncontrada = formato;
+                            encontrado = true;
+                            break;
+                        } else {
+                            console.log("❌ No encontrado con formato:", formato);
+                        }
+                    } catch (error) {
+                        console.log("Error probando formato", formato, ":", error.message);
+                    }
+                }
+                
+                if (!encontrado) {
+                    console.log("No se encontró documento con ningún formato");
+                    infoDivFecha.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico para la fecha seleccionada.</div>";
+                    noHistFecha.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+
+                historicoActualFecha = documentoEncontrado;
+                historicoActualFecha._docKey = claveEncontrada;
+                
+                const data = historicoActualFecha;
+                console.log("Estructura completa del documento:", data);
+                console.log("Propiedades del documento:", Object.keys(data));
+                
+                // Buscar datos en diferentes posibles propiedades
+                let datosArray = null;
+                if (data.data && Array.isArray(data.data)) {
+                    datosArray = data.data;
+                    console.log("✅ Datos encontrados en propiedad 'data'");
+                } else if (data.datos && Array.isArray(data.datos)) {
+                    datosArray = data.datos;
+                    console.log("✅ Datos encontrados en propiedad 'datos'");
+                } else if (data.items && Array.isArray(data.items)) {
+                    datosArray = data.items;
+                    console.log("✅ Datos encontrados en propiedad 'items'");
+                } else if (data.productos && Array.isArray(data.productos)) {
+                    datosArray = data.productos;
+                    console.log("✅ Datos encontrados en propiedad 'productos'");
+                } else {
+                    // Buscar cualquier propiedad que sea un array
+                    for (const prop in data) {
+                        if (Array.isArray(data[prop]) && data[prop].length > 0) {
+                            datosArray = data[prop];
+                            console.log(`✅ Datos encontrados en propiedad '${prop}'`);
+                            break;
+                        }
+                    }
+                }
+                
+                if (!datosArray) {
+                    console.log("❌ No se encontraron datos en formato array");
+                    console.log("Intentando mostrar estructura del documento...");
+                    infoDivFecha.innerHTML = `
+                        <div style='color:#ef4444;font-weight:bold;margin-top:8px;'>
+                            El documento existe pero no contiene datos en el formato esperado.
+                            <br><small>Estructura: ${JSON.stringify(Object.keys(data), null, 2)}</small>
+                        </div>
+                    `;
+                    noHistFecha.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+                
+                console.log(`📊 Procesando ${datosArray.length} registros`);
+                
+                // Actualizar la referencia para que el resto del código funcione
+                if (!data.data) {
+                    data.data = datosArray;
+                }
+
+                infoDivFecha.innerHTML = `
+                    <b>Archivo:</b> ${data.fileName || data.filename || data.archivo || '-'} &nbsp; 
+                    <b>Fecha:</b> ${data.fecha || data.date || claveEncontrada} &nbsp; 
+                    <b>Registros:</b> ${data.rowCount || datosArray.length || '-'}
+                `;
+                
+                infoDivFecha.innerHTML += `
+                    <button id="btnEditarFecha" style="margin-left:18px;padding:7px 18px;border-radius:7px;background:#fbbf24;color:#fff;font-weight:700;border:none;cursor:pointer;">✏️ Editar Registro</button>
+                    <button id="btnGuardarFecha" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#22c55e;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">💾 Guardar Cambios</button>
+                    <button id="btnImportarSAP" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#6366f1;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">📤 Importar SAP</button>
+                `;
+                
+                if (datosArray.length === 0) {
+                    tablaBodyFecha.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#ef4444;">No hay productos en este histórico.</td></tr>`;
+                } else {
+                    console.log("Muestra del primer registro:", datosArray[0]);
+                    console.log("Propiedades del primer registro:", Object.keys(datosArray[0]));
+                    
+                    datosArray.forEach((item, idx) => {
+                        // Buscar diferencias en diferentes posibles nombres
+                        let diferencia = item['Diferencias'] ?? item['DIFERENCIAS'] ?? item['diferencias'] ?? 
+                                       item['Diferencia'] ?? item['DIFERENCIA'] ?? item['diferencia'] ?? '';
+                        if (diferencia === undefined || diferencia === null || diferencia === '') diferencia = '';
+                        if (diferencia === 0) diferencia = 0;
+                        
+                        // Buscar material in diferentes posibles nombres
+                        let material = item['Material'] ?? item['MATERIAL'] ?? item['material'] ?? 
+                                     item['Codigo'] ?? item['CODIGO'] ?? item['codigo'] ?? '';
+                        
+                        // Buscar descripción en diferentes posibles nombres
+                        let descripcion = item['Texto breve de material'] ?? item['Descripcion'] ?? 
+                                        item['DESCRIPCION'] ?? item['descripcion'] ?? item['Descripción'] ?? '';
+                        
+                        // Buscar SAP in diferentes posibles nombres
+                        let sap = item['SAP'] ?? item['sap'] ?? item['Sap'] ?? '';
+                        
+                        // Buscar físico en diferentes posibles nombres
+                        let fisico = item['Físico'] ?? item['FISICO'] ?? item['fisico'] ?? 
+                                   item['Fisico'] ?? item['FÍSICO'] ?? '';
+                        
+                        // Buscar display en diferentes posibles nombres
+                        let display = item['Display'] ?? item['DISPLAY'] ?? item['display'] ?? '';
+                        
+                        // Buscar merma en diferentes posibles nombres
+                        let merma = item['Merma'] ?? item['MERMA'] ?? item['merma'] ?? '';
+                        
+                        tablaBodyFecha.innerHTML += `
+                            <tr>
+                                <td class="code-cell">${material}</td>
+                                <td class="product-cell">${descripcion}</td>
+                                <td>${sap}</td>
+                                <td class="editable-fisico">${fisico === 0 ? 0 : (fisico || '')}</td>
+                                <td class="editable-display">${display === 0 ? 0 : (display || '')}</td>
+                                <td class="editable-merma">${merma === 0 ? 0 : (merma || '')}</td>
+                                <td>${diferencia}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                tablaContainerFecha.style.display = 'block';
+                btnExportarFecha.style.display = 'inline-flex';
+                
+            } catch (error) {
+                console.error("Error al buscar el histórico:", error);
+                infoDivFecha.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico: ${error.message}</div>`;
+                noHistFecha.style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+            
+            // Configurar botones después de crear la interfaz
+            setTimeout(() => {
+                const btnEditar = document.getElementById('btnEditarFecha');
+                const btnGuardar = document.getElementById('btnGuardarFecha');
+                const btnImportarSAP = document.getElementById('btnImportarSAP');
+                
+                if (btnEditar) {
+                    btnEditar.onclick = function() {
+                        habilitarEdicionInventarioDiario();
+                        btnEditar.style.display = 'none';
+                        btnGuardar.style.display = '';
+                        if (btnImportarSAP) btnImportarSAP.style.display = '';
+                    };
+                }
+                
+                if (btnGuardar) {
+                    btnGuardar.onclick = function() {
+                        guardarCambiosInventarioDiario();
+                    };
+                }
+                
+                if (btnImportarSAP) {
+                    btnImportarSAP.onclick = function() {
+                        mostrarDialogoImportarSAP();
+                    };
+                }
+            }, 100);
+        }
+
+        // === PATCH: Reemplazo de habilitarEdicionInventarioDiario para forzar evaluación matemática ===
+function habilitarEdicionInventarioDiario() {
+    const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
+    function evalMath(raw){
+        let s=(raw||'').toString().trim();
+        if(!s) return 0; while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1); if(!s) return 0;
+        try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const norm=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+norm+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{}
+        const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f;
+    }
+    function format(n){return Number.isInteger(n)?n:parseFloat(n.toFixed(4));}
+    function bindCalc(input){
+        if(!input || input.dataset.calcBound) return; input.dataset.calcBound='1';
+        const idx=parseInt(input.getAttribute('data-row'),10);
+        const commit=()=>{
+            const v=format(evalMath(input.value)); input.value=v;
+            // Recalcular diferencia fila
+            const tr=input.closest('tr'); if(!tr) return;
+            const sap=parseFloat(tr.querySelector('td:nth-child(3)')?.textContent)||0;
+            const fisico=evalMath(tr.querySelector('input[data-field="Físico"][data-row="'+idx+'"]')?.value);
+            const display=evalMath(tr.querySelector('input[data-field="Display"][data-row="'+idx+'"]')?.value);
+            const merma=evalMath(tr.querySelector('input[data-field="Merma"][data-row="'+idx+'"]')?.value);
+            const diff=fisico+display+merma - sap;
+            const diffCell=tr.querySelector('td:last-child'); if(diffCell) diffCell.textContent=isNaN(diff)?'':format(diff);
+        };
+        ['blur','change'].forEach(ev=>input.addEventListener(ev,commit));
+        input.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ commit(); }});
+    }
+    filas.forEach((tr, idx) => {
+        const crear = (tdSelector, campo) => {
+            const td = tr.querySelector(tdSelector);
+            if (td && !td.querySelector('input')) {
+                const valor = td.textContent.trim();
+                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-${campo}" style="width:80px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
+            }
+        };
+        crear('.editable-fisico','Físico');
+        crear('.editable-display','Display');
+        crear('.editable-merma','Merma');
+        // Vincular
+        bindCalc(tr.querySelector('input[data-field="Físico"][data-row="'+idx+'"]'));
+        bindCalc(tr.querySelector('input[data-field="Display"][data-row="'+idx+'"]'));
+        bindCalc(tr.querySelector('input[data-field="Merma"][data-row="'+idx+'"]'));
+    });
+}
+
+function habilitarEdicionInventarioGeneral() {
+  const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
+  function evalExpr(str){
+    let s=(str||'').toString().trim();
+    if(!s) return 0;
+    while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
+    if(!s) return 0;
+    try{
+      const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
+      if(!limpio.trim()) return 0;
+      const norm=limpio.replace(/,/g,'.');
+      const r=Function('"use strict";return('+norm+')')();
+      if(typeof r==='number' && isFinite(r)) return r;
+    }catch{}
+    const n=parseFloat(s.replace(/,/g,'.'));
+    return isNaN(n)?0:n;
+  }
+  const fmt = n => (Number.isInteger(n)? n : parseFloat(n.toFixed(4)));
+  const bind = (inp) => {
+    if(!inp || inp.dataset.bound) return;
+    inp.dataset.bound='1';
+    const commit = () => {
+      const val = fmt(evalExpr(inp.value));
+      inp.value = val; // reemplaza 5+5 por 10
+      const tr = inp.closest('tr');
+      const sap = evalExpr(tr.querySelector('.input-general-sap')?.value || tr.querySelector('.editable-general-sap')?.textContent);
+      const real = evalExpr(tr.querySelector('.input-general-real')?.value || tr.querySelector('.editable-general-real')?.textContent);
+      const diff = real - sap;
+      const diffCell = tr.querySelector('td:last-child');
+      if (diffCell) diffCell.textContent = isNaN(diff) ? '' : fmt(diff);
+      const idx = [...tr.parentElement.children].indexOf(tr);
+      if (historicoActualGeneral) {
+        const arr = historicoActualGeneral.data || historicoActualGeneral.datos;
+        if (arr && arr[idx]) {
+          if (inp.classList.contains('input-general-sap'))  arr[idx]['SAP']  = val;
+            if (inp.classList.contains('input-general-real')) arr[idx]['REAL'] = val;
+          arr[idx]['DIFERENCIA'] = fmt(diff);
+        }
+      }
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key==='Tab') commit(); });
+  };
+  filas.forEach((tr, idx) => {
+    const mk = (sel, campo, w=90) => {
+      const td = tr.querySelector(sel);
+      if (td && !td.querySelector('input')) {
+        const val = td.textContent.trim();
+        td.innerHTML = `<input type=\"text\" data-row=\"${idx}\" data-field=\"${campo}\" class=\"calc-eval input-general-${campo.toLowerCase()}\" style=\"width:${w}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;\" value=\"${val}\">`;
+      }
+    };
+    mk('.editable-general-lote','Lote');
+    mk('.editable-general-sap','SAP');
+    mk('.editable-general-real','REAL');
+    bind(tr.querySelector('.input-general-sap'));
+    bind(tr.querySelector('.input-general-real'));
+  });
+  // Recalcular todas las diferencias inmediatamente tras habilitar edición
+  filas.forEach(tr => {
+    const sap = evalExpr(tr.querySelector('.input-general-sap')?.value || tr.querySelector('.editable-general-sap')?.textContent);
+    const real = evalExpr(tr.querySelector('.input-general-real')?.value || tr.querySelector('.editable-general-real')?.textContent);
+    const diff = real - sap;
+    const diffCell = tr.querySelector('td:last-child');
+    if (diffCell) diffCell.textContent = isNaN(diff)? '' : fmt(diff);
+    const idx = [...tr.parentElement.children].indexOf(tr);
+    if (historicoActualGeneral) {
+      const arr = historicoActualGeneral.data || historicoActualGeneral.datos;
+      if (arr && arr[idx]) arr[idx]['DIFERENCIA'] = fmt(diff);
+    }
+  });
+}
+// === FIN NUEVA VERSION ===
+
+        // Buscar histórico general
+        async function buscarHistoricoGeneral() {
+            const fecha = fechaInputGeneral.value;
+            if (!fecha) {
+                alert("Por favor selecciona una fecha para buscar.");
+                return;
+            }
+            showLoading(true);
+            tablaBodyGeneral.innerHTML = '';
+            infoDivGeneral.innerHTML = '';
+            tablaContainerGeneral.style.display = 'none';
+            noHistGeneral.style.display = 'none';
+            btnExportarGeneral.style.display = 'none';
+            historicoActualGeneral = null;
+
+            try {
+                // Buscar por ID de documento (fecha normalizada)
+                let fechaKey = normalizarFecha(fecha);
+                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(fechaKey)) {
+                    const [yyyy, mm, dd] = fechaKey.split('-');
+                    const mm2 = mm.padStart(2, '0');
+                    const dd2 = dd.padStart(2, '0');
+                    fechaKey = `${yyyy}-${mm2}-${dd2}`;
+                }
+                
+                console.log("Buscando inventario general para fecha:", fechaKey);
+                
+                const docRef = db.collection("inventario_general").doc(fechaKey);
+                const docSnap = await docRef.get();
+                if (!docSnap.exists) {
+                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico general para la fecha seleccionada.</div>";
+                    noHistGeneral.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+                const data = docSnap.data();
+                historicoActualGeneral = data;
+                // Guardar la clave del documento para usarla al guardar cambios
+                historicoActualGeneral._docKey = fechaKey;
+                
+                console.log("Documento general encontrado con clave:", fechaKey);
+                
+                // Usar la propiedad "data" o "datos" según cómo se guardó
+                const datos = data.data || data.datos;
+                if (!datos || !Array.isArray(datos)) {
+                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>El formato del histórico general es incorrecto.</div>";
+                    noHistGeneral.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+                infoDivGeneral.innerHTML = `
+                    <b>Fecha:</b> ${data.fecha || '-'} &nbsp; 
+                    <b>Archivo:</b> ${data.fileName || '-'}
+
+                    <button id="btnEditarGeneral" style="margin-left:18px;padding:7px 18px;border-radius:7px;background:#fbbf24;color:#fff;font-weight:700;border:none;cursor:pointer;">✏️ Editar Registro</button>
+                    <button id="btnGuardarGeneral" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#22c55e;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">💾 Guardar Cambios</button>
+                `;
+                if (datos.length > 0) {
+                    const columnas = [
+                        "Centro",
+                        "Almacén",
+                        "Material",
+                        "Texto breve de material",
+                        "Lote",
+                        "SAP",
+                        "REAL",
+                        "DIFERENCIA"
+                    ];
+                    const thead = document.querySelector('#tablaHistGeneral thead tr');
+                    thead.innerHTML = '';
+                    columnas.forEach(col => {
+                        const th = document.createElement('th');
+                        th.textContent = col;
+                        thead.appendChild(th);
+                    });
+                    tablaBodyGeneral.innerHTML = '';
+                    datos.forEach((item, idx) => {
+                        let fila = '<tr>';
+                        columnas.forEach(col => {
+                            // SOLO para Lote, SAP, REAL: poner valor plano, input solo al editar
+                            if (col === "Lote") {
+                                fila += `<td class="editable-general-lote">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
+                            } else if (col === "SAP") {
+                                fila += `<td class="editable-general-sap">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
+                            } else if (col === "REAL") {
+                                fila += `<td class="editable-general-real">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
+                            } else {
+                                fila += `<td>${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
+                            }
+                        });
+                        fila += '</tr>';
+                        tablaBodyGeneral.innerHTML += fila;
+                    });
+                } else {
+                    tablaBodyGeneral.innerHTML = `<tr><td colspan="1" style="text-align:center;color:#ef4444;">No hay productos en este histórico.</td></tr>`;
+                }
+                tablaContainerGeneral.style.display = 'block';
+                btnExportarGeneral.style.display = 'inline-flex';
+            } catch (error) {
+                console.error("Error al buscar el histórico general:", error);
+                infoDivGeneral.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico general: ${error.message}</div>`;
+                noHistGeneral.style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+            setTimeout(() => {
+        const btnEditar = document.getElementById('btnEditarGeneral');
+        const btnGuardar = document.getElementById('btnGuardarGeneral');
+        if (btnEditar) {
+            btnEditar.onclick = function() {
+                habilitarEdicionInventarioGeneral();
+                btnEditar.style.display = 'none';
+                btnGuardar.style.display = '';
+            };
+        }
+        if (btnGuardar) {
+            btnGuardar.onclick = function() {
+                guardarCambiosInventarioGeneral();
+            };
+        }
+    }, 100);
+        }
+
+        // Habilita edición en las columnas Lote, SAP, REAL (convierte a input solo al editar)
+function habilitarEdicionInventarioGeneral() {
+    const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
+    filas.forEach((tr, idx) => {
+        const crear = (tdSelector, campo, width=90) => {
+            const td = tr.querySelector(tdSelector);
+            if (td && !td.querySelector('input')) {
+                const valor = td.textContent.trim();
+                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-general-${campo.toLowerCase()}" style="width:${width}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
+            }
+        };
+        crear('.editable-general-lote','Lote');
+        crear('.editable-general-sap','SAP');
+        crear('.editable-general-real','REAL');
+    });
+}
+
+// Guarda los cambios editados en Firestore para Inventario General
+async function guardarCambiosInventarioGeneral() {
+    const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
+    if (!historicoActualGeneral) { alert('No hay datos para guardar.'); return; }
+    const datos = historicoActualGeneral.data || historicoActualGeneral.datos;
+    if (!datos || !Array.isArray(datos)) { alert('No hay datos válidos para guardar.'); return; }
+    function evaluarExpresionNumero(str){ const s=(str||'').toString().trim(); if(s==='') return 0; try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(limpio==='') return 0; const normalizado=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+normalizado+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{} const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f; }
+    filas.forEach((tr, idx) => {
+        const inputLote = tr.querySelector('.input-general-lote');
+        const inputSAP = tr.querySelector('.input-general-sap');
+        const inputREAL = tr.querySelector('.input-general-real');
+        if (inputLote) datos[idx]['Lote'] = inputLote.value;
+        if (inputSAP) datos[idx]['SAP'] = evaluarExpresionNumero(inputSAP.value);
+        if (inputREAL) datos[idx]['REAL'] = evaluarExpresionNumero(inputREAL.value);
+        const sap = parseFloat(datos[idx]['SAP']) || 0;
+        const real = parseFloat(datos[idx]['REAL']) || 0;
+        datos[idx]['DIFERENCIA'] = real - sap;
+    });
+    try {
+        showLoading(true);
+        const fechaKey = historicoActualGeneral._docKey;
+        const updateData = { lastModified: new Date().toISOString() };
+        if (historicoActualGeneral.data) updateData.data = datos; else updateData.datos = datos;
+        if (historicoActualGeneral.fecha !== undefined) updateData.fecha = historicoActualGeneral.fecha;
+        const fileName = historicoActualGeneral.fileName || historicoActualGeneral.filename || historicoActualGeneral.archivo; if (fileName !== undefined) updateData.fileName = fileName;
+        await db.collection('inventario_general').doc(fechaKey).update(updateData);
+        alert('Cambios guardados correctamente en el documento original.');
+        document.getElementById('btnEditarGeneral').style.display='';
+        document.getElementById('btnGuardarGeneral').style.display='none';
+        buscarHistoricoGeneral();
+    } catch (error) { alert('Error al guardar cambios: '+error.message); } finally { showLoading(false); }
+}
+
+// Exportar a Excel (fecha)
+        function exportarExcelFecha() {
+            if (!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) {
+                alert("No hay datos para exportar.");
+                return;
+            }
+            showLoading(true);
+            setTimeout(() => {
+                try {
+                    const wsData = [
+                        ["Material", "Texto breve de material", "SAP", "Físico", "Display", "Merma", "Diferencias"]
+                    ];
+                    historicoActualFecha.data.forEach(item => {
+                        // Buscar el valor de diferencia en cualquiera de los posibles nombres
+                        let diferencia = 
+                            item['DIFERENCIA'] ??
+                            item['DIFERENCIAS'] ?? 
+                            item['diferencia'] ?? 
+                            item['diferencias'] ?? 
+                            item['Diferencia'] ?? 
+                            item['Diferencias'] ?? 
+                            '';
+                        if (diferencia === undefined || diferencia === null || diferencia === '') diferencia = '';
+                        if (diferencia === 0) diferencia = 0;
+                        wsData.push([
+                            item['Material'] || item['material'] || '',
+                            item['Texto breve de material'] || item['descripcion'] || '',
+                            item['SAP'] || item['sap'] || '',
+                            item['Físico'] === 0 ? 0 : (item['Físico'] || item['fisico'] || ''),
+                            item['Display'] === 0 ? 0 : (item['Display'] || item['display'] || ''),
+                            item['Merma'] === 0 ? 0 : (item['Merma'] || item['merma'] || ''),
+                            diferencia
+                        ]);
+                    });
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Histórico");
+                    let nombreArchivo = "historico_inventario_fecha.xlsx";
+                    if (historicoActualFecha.fecha) {
+                        nombreArchivo = `historico_inventario_${historicoActualFecha.fecha}.xlsx`;
+                    }
+                    XLSX.writeFile(wb, nombreArchivo);
+                } catch (e) {
+                    alert("Error al exportar a Excel: " + e.message);
+                } finally {
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        // Exportar a Excel (general)
+        function exportarExcelGeneral() {
+            // Soporta ambos: data o datos
+            let datos = null;
+            if (historicoActualGeneral) {
+                if (Array.isArray(historicoActualGeneral.datos)) {
+                    datos = historicoActualGeneral.datos;
+                } else if (Array.isArray(historicoActualGeneral.data)) {
+                    datos = historicoActualGeneral.data;
+                }
+            }
+            if (!datos) {
+                alert("No hay datos para exportar.");
+                return;
+            }
+            showLoading(true);
+            setTimeout(() => {
+                try {
+            // Columnas en el orden solicitado
+            const columnasDeseadas = [
+                "Centro",
+                "Almacén",
+                "Material",
+                "Texto breve de material",
+                "Lote",
+                "SAP",
+                "REAL",
+                "DIFERENCIA"
+            ];
+            // Filtrar solo las columnas que existen en los datos
+            const keys = Object.keys(datos[0]);
+            const columnas = columnasDeseadas.filter(col => keys.includes(col));
+            // Encabezados
+            const wsData = [columnas];
+            // Filas
+            datos.forEach(item => {
+                wsData.push(columnas.map(col => item[col] === 0 ? 0 : (item[col] || '')));
+            });
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Histórico General");
+            let nombreArchivo = "historico_inventario_general.xlsx";
+            if (historicoActualGeneral.fecha) {
+                nombreArchivo = `historico_inventario_general_${historicoActualGeneral.fecha}.xlsx`;
+            }
+            XLSX.writeFile(wb, nombreArchivo);
+                } catch (e) {
+                    alert("Error al exportar a Excel: " + e.message);
+                } finally {
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        // Agrega input file oculto para importar SAP
+(function() {
+    if (!document.getElementById('inputImportarSAP')) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.xlsx,.xls';
+        input.style.display = 'none';
+        input.id = 'inputImportarSAP';
+        document.body.appendChild(input);
+    }
+})();
+
+
+    // Mostrar diálogo para importar SAP
+    function mostrarDialogoImportarSAP() {
+        const input = document.getElementById('inputImportarSAP');
+        input.value = '';
+        input.onchange = function(e) {
+            if (e.target.files && e.target.files[0]) {
+                importarSAPDesdeExcel(e.target.files[0]);
+            }
+        };
+        input.click();
+    }
+
+    // Importa SAP desde Excel y actualiza los registros por Material
+    async function importarSAPDesdeExcel(file) {
+        showLoading(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                // Toma la primera hoja
+                const sheetName = workbook.SheetNames[0];
+                const ws = workbook.Sheets[sheetName];
+                const rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
+                
+                const sapMap = {};
+                rows.forEach(row => {
+                    const material = row['Material'] || row['material'];
+                    const sap = row['SAP'] || row['sap'];
+                    if (material !== undefined && sap !== undefined) {
+                        sapMap[String(material).trim()] = sap;
+                    }
+                });
+                
+                let cambios = 0;
+                if (historicoActualFecha && Array.isArray(historicoActualFecha.data)) {
+                    historicoActualFecha.data.forEach(item => {
+                        const materialRegistro = String(item['Material'] || item['material'] || '').trim();
+                        if (materialRegistro && sapMap.hasOwnProperty(materialRegistro)) {
+                            item['SAP'] = sapMap[materialRegistro];
+                            cambios++;
+                    }
+                });
+                
+                // Actualizar la tabla HTML
+                const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
+                filas.forEach((tr, idx) => {
+                    const item = historicoActualFecha.data[idx];
+                    const tdSAP = tr.querySelector('td:nth-child(3)');
+                    if (tdSAP && item) {
+                        tdSAP.textContent = String(item['SAP'] ?? item['sap'] ?? '');
+                    }
+                    
+                    // Recalcular diferencias
+                    const inputFisico = tr.querySelector('.input-fisico');
+                    const inputDisplay = tr.querySelector('.input-display');
+                    const inputMerma = tr.querySelector('.input-merma');
+                    const tdDiferencia = tr.querySelector('td:last-child');
+                    
+                    let sapValue = parseFloat(tdSAP.textContent) || 0;
+                    let fisico = inputFisico ? parseFloat(inputFisico.value) || 0 : parseFloat(item['Físico'] || item['fisico']) || 0;
+                    let display = inputDisplay ? parseFloat(inputDisplay.value) || 0 : parseFloat(item['Display'] || item['display']) || 0;
+                    let merma = inputMerma ? parseFloat(inputMerma.value) || 0 : parseFloat(item['Merma'] || item['merma']) || 0;
+                    let diferencia = fisico + display + merma - sapValue;
+                    
+                    if (tdDiferencia) tdDiferencia.textContent = isNaN(diferencia) ? '' : diferencia;
+                });
+            }
+            
+            if (cambios > 0) {
+                // Usar la clave exacta del documento encontrado
+                const fechaKey = historicoActualFecha._docKey;
+                console.log("Guardando SAP actualizado en documento:", fechaKey);
+                
+                // Preparar datos de actualización sin valores undefined
+                const updateData = {
+                    data: historicoActualFecha.data,
+                    lastModified: new Date().toISOString()
+                };
+                
+                db.collection("inventario_diario").doc(fechaKey).update(updateData).then(() => {
+                    alert(`SAP actualizado para ${cambios} productos.`);
+                }).catch(e => {
+                    alert('Error al guardar SAP: ' + e.message);
+                }).finally(() => {
+                    showLoading(false);
+                });
+            } else {
+                alert('No se encontraron coincidencias de Material para actualizar SAP.');
+                showLoading(false);
+            }
+        };
+        reader.onerror = function() {
+            alert('Error al leer el archivo.');
+            showLoading(false);
+        };
+        reader.readAsArrayBuffer(file);
+    } catch (e) {
+        alert('Error al importar SAP: ' + e.message);
+        showLoading(false);
+    }
+}
+
+        // Asignar eventos a los botones
+        btnBuscarFecha.addEventListener('click', buscarHistoricoFecha);
+        btnBuscarGeneral.addEventListener('click', buscarHistoricoGeneral);
+        btnExportarFecha.addEventListener('click', exportarExcelFecha);
+        btnExportarGeneral.addEventListener('click', exportarExcelGeneral);
+
+        // === NUEVO: Normalización global de expresiones aritméticas en inputs ===
+        (function(){
+            function evalExpr(str){
+                let s=(str||'').toString().trim();
+                if(!s) return 0;
+                while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
+                if(!s) return 0;
+                try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const norm=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+norm+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{}
+                const n=parseFloat(s.replace(/,/g,'.')); return isNaN(n)?0:n;
+            }
+            function format(n){ return Number.isInteger(n)? n : parseFloat(n.toFixed(4)); }
+            function recalcFilaDiario(idx){
+                const tr = document.querySelector(`#tablaHistBodyFecha tr:nth-child(${idx+1})`); if(!tr) return;
+                const sap = evalExpr(tr.querySelector('td:nth-child(3)')?.textContent || '0');
+                const fis=evalExpr(tr.querySelector('.input-fisico')?.value);
+                const dis=evalExpr(tr.querySelector('.input-display')?.value);
+                const mer=evalExpr(tr.querySelector('.input-merma')?.value);
+                const diff=fis+dis+mer - sap;
+                const diffCell=tr.querySelector('td:last-child');
+                if(diffCell) diffCell.textContent = isNaN(diff)? '' : format(diff);
+            }
+            function recalcFilaGeneral(idx){
+                const dataArr = historicoActualGeneral.data || historicoActualGeneral.datos; if(!dataArr) return;
+                const tr = document.querySelector(`#tablaHistBodyGeneral tr:nth-child(${idx+1})`); if(!tr) return;
+                const sap=evalExpr(tr.querySelector('.input-general-sap')?.value || tr.querySelector('.editable-general-sap')?.textContent);
+                const real=evalExpr(tr.querySelector('.input-general-real')?.value || tr.querySelector('.editable-general-real')?.textContent);
+                const diff= real - sap;
+                const diffCell=tr.querySelector('td:last-child');
+                if(diffCell) diffCell.textContent = isNaN(diff)? '' : format(diff);
+            }
+            function normalizar(e){
+                const el=e.target;
+                if(!el.matches('.input-fisico, .input-display, .input-merma, .input-general-sap, .input-general-real')) return;
+                const val=format(evalExpr(el.value));
+                el.value=val;
+                const tr=el.closest('tr');
+                if(!tr) return;
+                if (tr.parentElement && tr.parentElement.id === 'tablaHistBodyFecha') {
+                    // Actualizar modelo en memoria si existe
+                    if (historicoActualFecha && historicoActualFecha.data) {
+                        const idx=[...tr.parentElement.children].indexOf(tr);
+                        if(idx>-1 && historicoActualFecha.data[idx]) {
+                            if(el.classList.contains('input-fisico')) historicoActualFecha.data[idx]['Físico']=val;
+                            if(el.classList.contains('input-display')) historicoActualFecha.data[idx]['Display']=val;
+                            if(el.classList.contains('input-merma')) historicoActualFecha.data[idx]['Merma']=val;
+                        }
+                    }
+                    recalcFilaDiario(idx);
+                } else if (tr.parentElement && tr.parentElement.id === 'tablaHistBodyGeneral') {
+                    if (historicoActualGeneral) {
+                        const arr=historicoActualGeneral.data || historicoActualGeneral.datos;
+                        const idx=[...tr.parentElement.children].indexOf(tr);
+                        if(arr && idx>-1 && arr[idx]) {
+                            if(el.classList.contains('input-general-sap')) arr[idx]['SAP']=val;
+                            if(el.classList.contains('input-general-real')) arr[idx]['REAL']=val;
+                        }
+                    }
+                    recalcFilaGeneral(idx);
+                }
+            }
+            document.addEventListener('blur', normalizar, true);
+            document.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key==='Tab') && e.target && e.target.matches('.input-fisico, .input-display, .input-merma, .input-general-sap, .input-general-real')) { normalizar(e); } }, true);
+        })();
+    </script>
+</body>
+</html>
+</html>
+</body>
+</html>
+</html>
+</body>
+</html>
+</html>
+</body>
+</html>
+</html>
+</body>
+</html>
+</html>
+</body>
+</html>
+</html>
+</html>
+</body>
+</html>
+</html>
+</body>
