@@ -798,9 +798,9 @@ function habilitarEdicionInventarioDiario() {
             // Recalcular diferencia fila
             const tr=input.closest('tr'); if(!tr) return;
             const sap=parseFloat(tr.querySelector('td:nth-child(3)')?.textContent)||0;
-            const fisico=evalMath(tr.querySelector('input[data-field="Físico"][data-row="'+idx+'"]')?.value);
-            const display=evalMath(tr.querySelector('input[data-field="Display"][data-row="'+idx+'"]')?.value);
-            const merma=evalMath(tr.querySelector('input[data-field="Merma"][data-row="'+idx+'"]')?.value);
+            const fisico=evalMath(tr.querySelector('input.input-fisico[data-row="'+idx+'"]')?.value);
+            const display=evalMath(tr.querySelector('input.input-display[data-row="'+idx+'"]')?.value);
+            const merma=evalMath(tr.querySelector('input.input-merma[data-row="'+idx+'"]')?.value);
             const diff=fisico+display+merma - sap;
             const diffCell=tr.querySelector('td:last-child'); if(diffCell) diffCell.textContent=isNaN(diff)?'':format(diff);
         };
@@ -808,95 +808,71 @@ function habilitarEdicionInventarioDiario() {
         input.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ commit(); }});
     }
     filas.forEach((tr, idx) => {
-        const crear = (tdSelector, campo) => {
+        const crear = (tdSelector, tipo) => {
             const td = tr.querySelector(tdSelector);
             if (td && !td.querySelector('input')) {
                 const valor = td.textContent.trim();
-                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-${campo}" style="width:80px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
+                // map tipo -> clase
+                let clase = 'input-fisico';
+                if (tipo === 'Display') clase = 'input-display';
+                else if (tipo === 'Merma') clase = 'input-merma';
+                td.innerHTML = `<input type="text" data-row="${idx}" class="calc-eval ${clase}" style="width:80px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
             }
         };
         crear('.editable-fisico','Físico');
         crear('.editable-display','Display');
         crear('.editable-merma','Merma');
         // Vincular
-        bindCalc(tr.querySelector('input[data-field="Físico"][data-row="'+idx+'"]'));
-        bindCalc(tr.querySelector('input[data-field="Display"][data-row="'+idx+'"]'));
-        bindCalc(tr.querySelector('input[data-field="Merma"][data-row="'+idx+'"]'));
+        bindCalc(tr.querySelector('input.input-fisico[data-row="'+idx+'"]'));
+        bindCalc(tr.querySelector('input.input-display[data-row="'+idx+'"]'));
+        bindCalc(tr.querySelector('input.input-merma[data-row="'+idx+'"]'));
     });
 }
 
-function habilitarEdicionInventarioGeneral() {
-  const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
-  function evalExpr(str){
-    let s=(str||'').toString().trim();
-    if(!s) return 0;
-    while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
-    if(!s) return 0;
-    try{
-      const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
-      if(!limpio.trim()) return 0;
-      const norm=limpio.replace(/,/g,'.');
-      const r=Function('"use strict";return('+norm+')')();
-      if(typeof r==='number' && isFinite(r)) return r;
-    }catch{}
-    const n=parseFloat(s.replace(/,/g,'.'));
-    return isNaN(n)?0:n;
-  }
-  const fmt = n => (Number.isInteger(n)? n : parseFloat(n.toFixed(4)));
-  const bind = (inp) => {
-    if(!inp || inp.dataset.bound) return;
-    inp.dataset.bound='1';
-    const commit = () => {
-      const val = fmt(evalExpr(inp.value));
-      inp.value = val; // reemplaza 5+5 por 10
-      const tr = inp.closest('tr');
-      const sap = evalExpr(tr.querySelector('.input-general-sap')?.value || tr.querySelector('.editable-general-sap')?.textContent);
-      const real = evalExpr(tr.querySelector('.input-general-real')?.value || tr.querySelector('.editable-general-real')?.textContent);
-      const diff = real - sap;
-      const diffCell = tr.querySelector('td:last-child');
-      if (diffCell) diffCell.textContent = isNaN(diff) ? '' : fmt(diff);
-      const idx = [...tr.parentElement.children].indexOf(tr);
-      if (historicoActualGeneral) {
-        const arr = historicoActualGeneral.data || historicoActualGeneral.datos;
-        if (arr && arr[idx]) {
-          if (inp.classList.contains('input-general-sap'))  arr[idx]['SAP']  = val;
-            if (inp.classList.contains('input-general-real')) arr[idx]['REAL'] = val;
-          arr[idx]['DIFERENCIA'] = fmt(diff);
-        }
-      }
-    };
-    inp.addEventListener('blur', commit);
-    inp.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key==='Tab') commit(); });
-  };
-  filas.forEach((tr, idx) => {
-    const mk = (sel, campo, w=90) => {
-      const td = tr.querySelector(sel);
-      if (td && !td.querySelector('input')) {
-        const val = td.textContent.trim();
-        td.innerHTML = `<input type=\"text\" data-row=\"${idx}\" data-field=\"${campo}\" class=\"calc-eval input-general-${campo.toLowerCase()}\" style=\"width:${w}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;\" value=\"${val}\">`;
-      }
-    };
-    mk('.editable-general-lote','Lote');
-    mk('.editable-general-sap','SAP');
-    mk('.editable-general-real','REAL');
-    bind(tr.querySelector('.input-general-sap'));
-    bind(tr.querySelector('.input-general-real'));
-  });
-  // Recalcular todas las diferencias inmediatamente tras habilitar edición
-  filas.forEach(tr => {
-    const sap = evalExpr(tr.querySelector('.input-general-sap')?.value || tr.querySelector('.editable-general-sap')?.textContent);
-    const real = evalExpr(tr.querySelector('.input-general-real')?.value || tr.querySelector('.editable-general-real')?.textContent);
-    const diff = real - sap;
-    const diffCell = tr.querySelector('td:last-child');
-    if (diffCell) diffCell.textContent = isNaN(diff)? '' : fmt(diff);
-    const idx = [...tr.parentElement.children].indexOf(tr);
-    if (historicoActualGeneral) {
-      const arr = historicoActualGeneral.data || historicoActualGeneral.datos;
-      if (arr && arr[idx]) arr[idx]['DIFERENCIA'] = fmt(diff);
+        // Guarda los cambios editados en Firestore para Inventario Diario
+async function guardarCambiosInventarioDiario(){
+    if(!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) { alert('No hay datos para guardar.'); return; }
+    const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
+    // Actualizar el arreglo en memoria con los inputs
+    function num(v){
+        let s=(v||'').toString().trim();
+        if(!s) return 0; while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
+        try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const r=Function('"use strict";return('+limpio.replace(/,/g,'.')+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{}
+        const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f;
     }
-  });
+    filas.forEach((tr, idx)=>{
+        const item = historicoActualFecha.data[idx] || (historicoActualFecha.data[idx]={});
+        const fis = tr.querySelector('.input-fisico')?.value;
+        const dis = tr.querySelector('.input-display')?.value;
+        const mer = tr.querySelector('.input-merma')?.value;
+        const sap = parseFloat(tr.querySelector('td:nth-child(3)')?.textContent)||0;
+        if(fis!==undefined) item['Físico'] = num(fis);
+        if(dis!==undefined) item['Display'] = num(dis);
+        if(mer!==undefined) item['Merma'] = num(mer);
+        const diferencia = (item['Físico']||0) + (item['Display']||0) + (item['Merma']||0) - sap;
+        // intentar guardar en cualquiera de las llaves posibles
+        item['DIFERENCIA'] = diferencia;
+        item['Diferencia'] = diferencia;
+        item['Diferencias'] = diferencia;
+    });
+    try{
+        showLoading(true);
+        const fechaKey = historicoActualFecha._docKey;
+        const updateData = {
+            data: historicoActualFecha.data,
+            lastModified: new Date().toISOString(),
+            fecha: historicoActualFecha.fecha || fechaInputFecha.value
+        };
+        await db.collection('inventario_diario').doc(fechaKey).set(updateData, { merge: true });
+        alert('Cambios guardados correctamente.');
+        // salir de modo edición: reconstruir tabla
+        await buscarHistoricoFecha();
+    }catch(err){
+        alert('Error al guardar cambios: '+err.message);
+    }finally{
+        showLoading(false);
+    }
 }
-// === FIN NUEVA VERSION ===
 
         // Buscar histórico general
         async function buscarHistoricoGeneral() {
@@ -1028,8 +1004,8 @@ function habilitarEdicionInventarioGeneral() {
         const crear = (tdSelector, campo, width=90) => {
             const td = tr.querySelector(tdSelector);
             if (td && !td.querySelector('input')) {
-                const valor = td.textContent.trim();
-                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-general-${campo.toLowerCase()}" style="width:${width}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
+                const val = td.textContent.trim();
+                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-general-${campo.toLowerCase()}" style="width:${width}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${val}">`;
             }
         };
         crear('.editable-general-lote','Lote');
