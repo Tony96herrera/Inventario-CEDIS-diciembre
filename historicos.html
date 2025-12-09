@@ -115,6 +115,8 @@
             vertical-align: middle;
             font-size: 0.98rem;
         }
+        .negativo { color: #ef4444; }
+        .input-negativo { border-color: #ef4444 !important; color: #ef4444; }
         tr:nth-child(even) {background: #f9fafb;}
         .code-cell {font-family:'JetBrains Mono','Courier New',monospace;font-weight:600;color:#6366f1;font-size:0.93rem;}
         .product-cell {font-weight:500;color:#22223b;max-width:300px;word-wrap:break-word;}
@@ -227,20 +229,23 @@
         .side-menu {
             position: fixed;
             top: 0;
-            left: -180px;
-            width: 160px;
+            left: 0; /* anclar al borde */
+            width: 200px; /* barra azul más ancha */
             height: 100%;
             background: linear-gradient(135deg,#6366f1 0%,#60a5fa 100%);
             color: #fff;
             box-shadow: 2px 0 16px rgba(60,72,100,0.10);
             z-index: 2000;
-            transition: left 0.3s;
-            padding-top: 50px;
+            transition: transform 0.3s ease; /* animar con transform */
+            transform: translateX(-100%); /* oculto por completo cuando está desactivado */
+            padding-top: 60px;
+            padding-left: 16px;
+            padding-right: 12px;
             border-top-right-radius: 18px;
             border-bottom-right-radius: 18px;
         }
         .side-menu.open {
-            left: 0;
+            transform: translateX(0); /* visible al activar */
         }
         .side-menu ul {
             list-style: none;
@@ -354,6 +359,8 @@ input:checked + .slider:before {
                 font-size: 1.5rem;
             }
         }
+        /* Ocultar columnas no visibles en Inventario con lotes */
+        .col-oculta { display: none; }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -370,8 +377,8 @@ input:checked + .slider:before {
         <div class="menu-title">Menú</div>
         <ul>
             <li><a href="index.html" onclick="cerrarMenuLateral()">Inventario Diario</a></li>
-            <!-- <li><a href="historicos.html" onclick="cerrarMenuLateral()">Históricos</a></li> -->
-            <li><a href="Inventario%20General.html" onclick="cerrarMenuLateral()">Inventario General</a></li>
+            <!-- Eliminado Inventario General -->
+            <li><a href="Inventario%20con%20lotes.html" onclick="cerrarMenuLateral()">Inventario con lotes</a></li>
         </ul>
     </nav>
     <div class="container">
@@ -387,7 +394,7 @@ input:checked + .slider:before {
         <input type="checkbox" id="toggleTipoHistorico">
         <span class="slider"></span>
     </label>
-    <span id="labelGeneral" style="font-weight:700;color:#6366f1;font-size:1.08rem;margin-left:10px;">Inventario General</span>
+    <span id="labelGeneral" style="font-weight:700;color:#6366f1;font-size:1.08rem;margin-left:10px;">Inventario con lotes</span>
 </div>
         <!-- Inventario por Fecha -->
         <div id="busquedaFecha" style="display:block;">
@@ -877,10 +884,7 @@ async function guardarCambiosInventarioDiario(){
         // Buscar histórico general
         async function buscarHistoricoGeneral() {
             const fecha = fechaInputGeneral.value;
-            if (!fecha) {
-                alert("Por favor selecciona una fecha para buscar.");
-                return;
-            }
+            if (!fecha) { alert("Por favor selecciona una fecha para buscar."); return; }
             showLoading(true);
             tablaBodyGeneral.innerHTML = '';
             infoDivGeneral.innerHTML = '';
@@ -890,164 +894,215 @@ async function guardarCambiosInventarioDiario(){
             historicoActualGeneral = null;
 
             try {
-                // Buscar por ID de documento (fecha normalizada)
+                // Normalizar clave de documento yyyy-mm-dd
                 let fechaKey = normalizarFecha(fecha);
                 if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(fechaKey)) {
                     const [yyyy, mm, dd] = fechaKey.split('-');
-                    const mm2 = mm.padStart(2, '0');
-                    const dd2 = dd.padStart(2, '0');
-                    fechaKey = `${yyyy}-${mm2}-${dd2}`;
+                    fechaKey = `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
                 }
-                
-                console.log("Buscando inventario general para fecha:", fechaKey);
-                
-                const docRef = db.collection("inventario_general").doc(fechaKey);
+                console.log("Buscando inventario con lotes para fecha:", fechaKey);
+
+                // Leer de la colección de lotes
+                const docRef = db.collection('inventario_por_lotes').doc(fechaKey);
                 const docSnap = await docRef.get();
                 if (!docSnap.exists) {
-                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico general para la fecha seleccionada.</div>";
+                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico de inventario con lotes para la fecha seleccionada.</div>";
                     noHistGeneral.style.display = 'block';
                     showLoading(false);
                     return;
                 }
-                const data = docSnap.data();
-                historicoActualGeneral = data;
-                // Guardar la clave del documento para usarla al guardar cambios
-                historicoActualGeneral._docKey = fechaKey;
-                
-                console.log("Documento general encontrado con clave:", fechaKey);
-                
-                // Usar la propiedad "data" o "datos" según cómo se guardó
-                const datos = data.data || data.datos;
-                if (!datos || !Array.isArray(datos)) {
-                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>El formato del histórico general es incorrecto.</div>";
-                    noHistGeneral.style.display = 'block';
-                    showLoading(false);
-                    return;
-                }
-                infoDivGeneral.innerHTML = `
-                    <b>Fecha:</b> ${data.fecha || '-'} &nbsp; 
-                    <b>Archivo:</b> ${data.fileName || '-'}
 
-                    <button id="btnEditarGeneral" style="margin-left:18px;padding:7px 18px;border-radius:7px;background:#fbbf24;color:#fff;font-weight:700;border:none;cursor:pointer;">✏️ Editar Registro</button>
+                const data = docSnap.data();
+                const datos = data.datos; // contrato: arreglo exacto en 'datos'
+                if (!Array.isArray(datos)) {
+                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>El documento debe contener la clave 'datos' con un arreglo válido.</div>";
+                    noHistGeneral.style.display = 'block';
+                    showLoading(false);
+                    return;
+                }
+
+                // Columnas exactas esperadas para Inventario con lotes
+                const columnasLotes = [
+                    'Centro','Almacén','Material','Texto breve de material','Lote',
+                    'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
+                    'En control calidad','Stock no libre','Bloqueado','Devoluciones',
+                    'Stock bloqueado EM valorado'
+                ];
+                const visibles = new Set(['Material','Texto breve de material','Lote','Libre utilización','FISICO']);
+                // Validación mínima de estructura
+                const faltantes = columnasLotes.filter(k => !Object.prototype.hasOwnProperty.call(datos[0]||{}, k));
+                if (faltantes.length) {
+                    console.warn('Campos faltantes en los datos:', faltantes);
+                }
+
+                historicoActualGeneral = { ...data, datos, _docKey: fechaKey, _columnas: columnasLotes };
+
+                // Encabezado e info + botones de edición/guardado
+                infoDivGeneral.innerHTML = `
+                    <b>Fecha:</b> ${data.fecha || fechaKey} &nbsp; 
+                    <b>Archivo:</b> ${data.fileName || '-'} &nbsp; 
+                    <b>Registros:</b> ${datos.length}
+                    <button id="btnEditarGeneral" style="margin-left:18px;padding:7px 18px;border-radius:7px;background:#fbbf24;color:#fff;font-weight:700;border:none;cursor:pointer;">✏️ Editar</button>
                     <button id="btnGuardarGeneral" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#22c55e;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">💾 Guardar Cambios</button>
                 `;
-                if (datos.length > 0) {
-                    const columnas = [
-                        "Centro",
-                        "Almacén",
-                        "Material",
-                        "Texto breve de material",
-                        "Lote",
-                        "SAP",
-                        "REAL",
-                        "DIFERENCIA"
-                    ];
-                    const thead = document.querySelector('#tablaHistGeneral thead tr');
-                    thead.innerHTML = '';
-                    columnas.forEach(col => {
-                        const th = document.createElement('th');
-                        th.textContent = col;
-                        thead.appendChild(th);
+
+                // Render de tabla con columnas exactas de lotes (solo lectura inicialmente)
+                const thead = document.querySelector('#tablaHistGeneral thead tr');
+                thead.innerHTML = '';
+                columnasLotes.forEach(col => {
+                    const th=document.createElement('th');
+                    th.textContent=col;
+                    if(!visibles.has(col)) th.classList.add('col-oculta');
+                    thead.appendChild(th);
+                });
+
+                tablaBodyGeneral.innerHTML = '';
+                datos.forEach(item => {
+                    const tr = document.createElement('tr');
+                    columnasLotes.forEach(col => {
+                        const td = document.createElement('td');
+                        const val = item[col];
+                        td.textContent = (val === 0 ? 0 : (val ?? ''));
+                        // Marcar negativos en columnas numéricas
+                        if ((col === 'Libre utilización' || col === 'FISICO')) {
+                            const numVal = parseFloat(String(val).toString().replace(/,/g,'.'));
+                            if (!isNaN(numVal) && numVal < 0) td.classList.add('negativo');
+                        }
+                        td.dataset.field = col;
+                        td.classList.add('celda-general');
+                        if(!visibles.has(col)) td.classList.add('col-oculta');
+                        tr.appendChild(td);
                     });
-                    tablaBodyGeneral.innerHTML = '';
-                    datos.forEach((item, idx) => {
-                        let fila = '<tr>';
-                        columnas.forEach(col => {
-                            // SOLO para Lote, SAP, REAL: poner valor plano, input solo al editar
-                            if (col === "Lote") {
-                                fila += `<td class="editable-general-lote">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
-                            } else if (col === "SAP") {
-                                fila += `<td class="editable-general-sap">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
-                            } else if (col === "REAL") {
-                                fila += `<td class="editable-general-real">${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
-                            } else {
-                                fila += `<td>${item[col] === 0 ? 0 : (item[col] || '')}</td>`;
-                            }
-                        });
-                        fila += '</tr>';
-                        tablaBodyGeneral.innerHTML += fila;
-                    });
-                } else {
-                    tablaBodyGeneral.innerHTML = `<tr><td colspan="1" style="text-align:center;color:#ef4444;">No hay productos en este histórico.</td></tr>`;
-                }
+                    tablaBodyGeneral.appendChild(tr);
+                });
+
                 tablaContainerGeneral.style.display = 'block';
                 btnExportarGeneral.style.display = 'inline-flex';
+
+                // Eventos de edición/guardado
+                setTimeout(() => {
+                    const btnEditarGen = document.getElementById('btnEditarGeneral');
+                    const btnGuardarGen = document.getElementById('btnGuardarGeneral');
+                    if (btnEditarGen) {
+                        btnEditarGen.onclick = () => { 
+                            habilitarEdicionInventarioGeneral();
+                            btnEditarGen.style.display='none';
+                            if (btnGuardarGen) btnGuardarGen.style.display='';
+                        };
+                    }
+                    if (btnGuardarGen) {
+                        btnGuardarGen.onclick = () => { guardarCambiosInventarioGeneral(); };
+                    }
+                }, 50);
             } catch (error) {
-                console.error("Error al buscar el histórico general:", error);
-                infoDivGeneral.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico general: ${error.message}</div>`;
+                console.error('Error al buscar el histórico de inventario con lotes:', error);
+                infoDivGeneral.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico de inventario con lotes: ${error.message}</div>`;
                 noHistGeneral.style.display = 'block';
             } finally {
                 showLoading(false);
             }
-            setTimeout(() => {
-        const btnEditar = document.getElementById('btnEditarGeneral');
-        const btnGuardar = document.getElementById('btnGuardarGeneral');
-        if (btnEditar) {
-            btnEditar.onclick = function() {
-                habilitarEdicionInventarioGeneral();
-                btnEditar.style.display = 'none';
-                btnGuardar.style.display = '';
-            };
-        }
-        if (btnGuardar) {
-            btnGuardar.onclick = function() {
-                guardarCambiosInventarioGeneral();
-            };
-        }
-    }, 100);
         }
 
         // Habilita edición en las columnas Lote, SAP, REAL (convierte a input solo al editar)
 function habilitarEdicionInventarioGeneral() {
+    const cols = (historicoActualGeneral && historicoActualGeneral._columnas) || [
+        'Centro','Almacén','Material','Texto breve de material','Lote',
+        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
+        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
+        'Stock bloqueado EM valorado'
+    ];
     const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
     filas.forEach((tr, idx) => {
-        const crear = (tdSelector, campo, width=90) => {
-            const td = tr.querySelector(tdSelector);
-            if (td && !td.querySelector('input')) {
+        cols.forEach((campo, colIdx) => {
+            // Limitar edición solo a Libre utilización y FISICO (Lote NO editable)
+            if (campo !== 'Libre utilización' && campo !== 'FISICO') return;
+            const td = tr.children[colIdx];
+            if (!td) return;
+            if (!td.querySelector('input')) {
                 const val = td.textContent.trim();
-                td.innerHTML = `<input type="text" data-row="${idx}" data-field="${campo}" class="calc-eval input-general-${campo.toLowerCase()}" style="width:${width}px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${val}">`;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = val;
+                input.dataset.row = String(idx);
+                input.dataset.field = campo;
+                input.className = 'calc-eval input-general';
+                input.style.cssText = 'width:140px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;';
+                // color rojo si negativo en numéricos
+                if (campo === 'Libre utilización' || campo === 'FISICO') {
+                    const numVal = parseFloat(val.replace(/,/g,'.'));
+                    if (!isNaN(numVal) && numVal < 0) input.classList.add('input-negativo');
+                }
+                td.innerHTML = '';
+                td.appendChild(input);
             }
-        };
-        crear('.editable-general-lote','Lote');
-        crear('.editable-general-sap','SAP');
-        crear('.editable-general-real','REAL');
+        });
     });
 }
 
-// Guarda los cambios editados en Firestore para Inventario General
+// Guarda los cambios editados en Firestore para Inventario General (inventario por lotes)
 async function guardarCambiosInventarioGeneral() {
-    const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
-    if (!historicoActualGeneral) { alert('No hay datos para guardar.'); return; }
-    const datos = historicoActualGeneral.data || historicoActualGeneral.datos;
-    if (!datos || !Array.isArray(datos)) { alert('No hay datos válidos para guardar.'); return; }
-    function evaluarExpresionNumero(str){ const s=(str||'').toString().trim(); if(s==='') return 0; try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(limpio==='') return 0; const normalizado=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+normalizado+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{} const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f; }
-    filas.forEach((tr, idx) => {
-        const inputLote = tr.querySelector('.input-general-lote');
-        const inputSAP = tr.querySelector('.input-general-sap');
-        const inputREAL = tr.querySelector('.input-general-real');
-        if (inputLote) datos[idx]['Lote'] = inputLote.value;
-        if (inputSAP) datos[idx]['SAP'] = evaluarExpresionNumero(inputSAP.value);
-        if (inputREAL) datos[idx]['REAL'] = evaluarExpresionNumero(inputREAL.value);
-        const sap = parseFloat(datos[idx]['SAP']) || 0;
-        const real = parseFloat(datos[idx]['REAL']) || 0;
-        datos[idx]['DIFERENCIA'] = real - sap;
-    });
+    if (!historicoActualGeneral || !Array.isArray(historicoActualGeneral.datos)) { alert('No hay datos para guardar.'); return; }
+    const datos = historicoActualGeneral.datos;
+    const cols = (historicoActualGeneral && historicoActualGeneral._columnas) || [
+        'Centro','Almacén','Material','Texto breve de material','Lote',
+        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
+        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
+        'Stock bloqueado EM valorado'
+    ];
+    const numericSet = new Set(['Libre utilización','FISICO']);
+    function evalNumero(raw){
+        let s=(raw||'').toString().trim();
+        if(!s) return 0;
+        while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
+        try{
+            const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
+            if(!limpio.trim()) return 0;
+            const norm=limpio.replace(/,/g,'.');
+            const r=Function('"use strict";return('+norm+')')();
+            if(typeof r==='number' && isFinite(r)) return r;
+        }catch{}
+        const f=parseFloat(s.replace(/,/g,'.'));
+        return isNaN(f)?0:f;
+    }
     try {
         showLoading(true);
+        const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
+        filas.forEach((tr, idx) => {
+            const item = datos[idx] || (datos[idx] = {});
+            cols.forEach((campo, colIdx) => {
+                const td = tr.children[colIdx];
+                if (!td) return;
+                const input = td.querySelector('input');
+                let valor = input ? input.value : td.textContent;
+                if (numericSet.has(campo)) {
+                    valor = evalNumero(valor);
+                }
+                item[campo] = (valor === 0) ? 0 : (valor ?? '');
+            });
+        });
         const fechaKey = historicoActualGeneral._docKey;
-        const updateData = { lastModified: new Date().toISOString() };
-        if (historicoActualGeneral.data) updateData.data = datos; else updateData.datos = datos;
-        if (historicoActualGeneral.fecha !== undefined) updateData.fecha = historicoActualGeneral.fecha;
-        const fileName = historicoActualGeneral.fileName || historicoActualGeneral.filename || historicoActualGeneral.archivo; if (fileName !== undefined) updateData.fileName = fileName;
-        await db.collection('inventario_general').doc(fechaKey).update(updateData);
-        alert('Cambios guardados correctamente en el documento original.');
-        document.getElementById('btnEditarGeneral').style.display='';
-        document.getElementById('btnGuardarGeneral').style.display='none';
-        buscarHistoricoGeneral();
-    } catch (error) { alert('Error al guardar cambios: '+error.message); } finally { showLoading(false); }
+        const updateData = {
+            datos: datos,
+            lastModified: new Date().toISOString(),
+            fecha: historicoActualGeneral.fecha || document.getElementById('fechaGeneral')?.value,
+            fileName: historicoActualGeneral.fileName || historicoActualGeneral.filename || historicoActualGeneral.archivo
+        };
+        // Remover claves con undefined para evitar error de Firestore
+        Object.keys(updateData).forEach(k => { if (updateData[k] === undefined) delete updateData[k]; });
+        await db.collection('inventario_por_lotes').doc(fechaKey).set(updateData, { merge: true });
+        alert('Cambios guardados correctamente en Inventario con lotes.');
+        const btnEditarGen = document.getElementById('btnEditarGeneral');
+        const btnGuardarGen = document.getElementById('btnGuardarGeneral');
+        if (btnEditarGen && btnGuardarGen) { btnEditarGen.style.display=''; btnGuardarGen.style.display='none'; }
+        await buscarHistoricoGeneral();
+    } catch (error) {
+        alert('Error al guardar cambios: ' + error.message);
+    } finally {
+        showLoading(false);
+    }
 }
 
-// Exportar a Excel (fecha)
+        // Exportar a Excel (fecha)
         function exportarExcelFecha() {
             if (!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) {
                 alert("No hay datos para exportar.");
@@ -1084,9 +1139,11 @@ async function guardarCambiosInventarioGeneral() {
                     const ws = XLSX.utils.aoa_to_sheet(wsData);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "Histórico");
-                    let nombreArchivo = "historico_inventario_fecha.xlsx";
-                    if (historicoActualFecha.fecha) {
-                        nombreArchivo = `historico_inventario_${historicoActualFecha.fecha}.xlsx`;
+                    // === Cambiar nombre según vista y fecha ===
+                    const fechaNombre = historicoActualFecha.fecha || document.getElementById('fechaHist')?.value || '';
+                    let nombreArchivo = "inventario_diario.xlsx";
+                    if (fechaNombre) {
+                        nombreArchivo = `inventario_diario_${fechaNombre}.xlsx`;
                     }
                     XLSX.writeFile(wb, nombreArchivo);
                 } catch (e) {
@@ -1099,52 +1156,36 @@ async function guardarCambiosInventarioGeneral() {
 
         // Exportar a Excel (general)
         function exportarExcelGeneral() {
-            // Soporta ambos: data o datos
             let datos = null;
-            if (historicoActualGeneral) {
-                if (Array.isArray(historicoActualGeneral.datos)) {
-                    datos = historicoActualGeneral.datos;
-                } else if (Array.isArray(historicoActualGeneral.data)) {
-                    datos = historicoActualGeneral.data;
-                }
+            if (historicoActualGeneral && Array.isArray(historicoActualGeneral.datos)) {
+                datos = historicoActualGeneral.datos;
             }
-            if (!datos) {
-                alert("No hay datos para exportar.");
-                return;
-            }
+            if (!datos) { alert('No hay datos para exportar.'); return; }
             showLoading(true);
             setTimeout(() => {
                 try {
-            // Columnas en el orden solicitado
-            const columnasDeseadas = [
-                "Centro",
-                "Almacén",
-                "Material",
-                "Texto breve de material",
-                "Lote",
-                "SAP",
-                "REAL",
-                "DIFERENCIA"
-            ];
-            // Filtrar solo las columnas que existen en los datos
-            const keys = Object.keys(datos[0]);
-            const columnas = columnasDeseadas.filter(col => keys.includes(col));
-            // Encabezados
-            const wsData = [columnas];
-            // Filas
-            datos.forEach(item => {
-                wsData.push(columnas.map(col => item[col] === 0 ? 0 : (item[col] || '')));
-            });
-            const ws = XLSX.utils.aoa_to_sheet(wsData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Histórico General");
-            let nombreArchivo = "historico_inventario_general.xlsx";
-            if (historicoActualGeneral.fecha) {
-                nombreArchivo = `historico_inventario_general_${historicoActualGeneral.fecha}.xlsx`;
-            }
-            XLSX.writeFile(wb, nombreArchivo);
+                    const columnas = [
+                        'Centro','Almacén','Material','Texto breve de material','Lote',
+                        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
+                        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
+                        'Stock bloqueado EM valorado'
+                    ];
+                    const wsData = [columnas];
+                    datos.forEach(item => {
+                        wsData.push(columnas.map(col => item[col] === 0 ? 0 : (item[col] ?? '')));
+                    });
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Inventario con lotes');
+                    // === Cambiar nombre según vista y fecha ===
+                    const fechaNombre = historicoActualGeneral && (historicoActualGeneral.fecha || document.getElementById('fechaGeneral')?.value || '');
+                    let nombreArchivo = 'inventario_con_lotes.xlsx';
+                    if (fechaNombre) {
+                        nombreArchivo = `inventario_con_lotes_${fechaNombre}.xlsx`;
+                    }
+                    XLSX.writeFile(wb, nombreArchivo);
                 } catch (e) {
-                    alert("Error al exportar a Excel: " + e.message);
+                    alert('Error al exportar a Excel: ' + e.message);
                 } finally {
                     showLoading(false);
                 }
@@ -1278,6 +1319,7 @@ async function guardarCambiosInventarioGeneral() {
             function evalExpr(str){
                 let s=(str||'').toString().trim();
                 if(!s) return 0;
+                // Evitar finales inválidos
                 while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
                 if(!s) return 0;
                 try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const norm=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+norm+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{}
@@ -1336,27 +1378,56 @@ async function guardarCambiosInventarioGeneral() {
             document.addEventListener('blur', normalizar, true);
             document.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key==='Tab') && e.target && e.target.matches('.input-fisico, .input-display, .input-merma, .input-general-sap, .input-general-real')) { normalizar(e); } }, true);
         })();
+
+// === Evaluar expresiones aritméticas en inputs (Libre utilización, FISICO) ===
+(function(){
+    function evalExpr(str){
+        let s=(str||'').toString().trim();
+        if(!s) return 0;
+        // Evitar finales inválidos
+        while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
+        if(!s) return 0;
+        try{
+            const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
+            if(!limpio.trim()) return 0;
+            const norm=limpio.replace(/,/g,'.');
+            const r=Function('"use strict";return('+norm+')')();
+            if(typeof r==='number' && isFinite(r)) return r;
+        }catch{}
+        const n=parseFloat(s.replace(/,/g,'.'));
+        return isNaN(n)?0:n;
+    }
+    function format(n){ return Number.isInteger(n)? n : parseFloat(n.toFixed(4)); }
+    function applyNegativeStyle(el, val){
+        const numVal = parseFloat(String(val));
+        if (!isNaN(numVal) && numVal < 0) el.classList.add('input-negativo'); else el.classList.remove('input-negativo');
+    }
+    // Aplica evaluación al salir del input o al presionar Enter/Tab
+    function commitInput(el){
+        const v = format(evalExpr(el.value));
+        el.value = v;
+        applyNegativeStyle(el, v);
+    }
+    document.addEventListener('blur', function(e){
+        const el = e.target;
+        if (el && el.classList && el.classList.contains('input-general')) {
+            // Solo para campos editables de lotes (Libre utilización, FISICO, Lote)
+            const field = el.dataset.field;
+            if (field === 'Libre utilización' || field === 'FISICO') {
+                commitInput(el);
+            }
+        }
+    }, true);
+    document.addEventListener('keydown', function(e){
+        const el = e.target;
+        if ((e.key==='Enter' || e.key==='Tab') && el && el.classList && el.classList.contains('input-general')) {
+            const field = el.dataset.field;
+            if (field === 'Libre utilización' || field === 'FISICO') {
+                commitInput(el);
+            }
+        }
+    }, true);
+})();
     </script>
 </body>
 </html>
-</html>
-</body>
-</html>
-</html>
-</body>
-</html>
-</html>
-</body>
-</html>
-</html>
-</body>
-</html>
-</html>
-</body>
-</html>
-</html>
-</html>
-</body>
-</html>
-</html>
-</body>

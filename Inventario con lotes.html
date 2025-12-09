@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventario Diario</title>
+    <title>Inventario con lotes</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -630,9 +630,9 @@
         <button class="close-btn" onclick="cerrarMenuLateral()" title="Cerrar menú">&times;</button>
         <div class="menu-title">Menú</div>
         <ul>
-            <!-- Eliminado Inventario General -->
+            <!-- Reemplazado Inventario General por Inventario Diario -->
+            <li><a href="index.html" onclick="cerrarMenuLateral()">Inventario Diario</a></li>
             <li><a href="historicos.html" onclick="cerrarMenuLateral()">Históricos</a></li>
-            <li><a href="Inventario%20con%20lotes.html" onclick="cerrarMenuLateral()">Inventario con lotes</a></li>
         </ul>
     </nav>
     
@@ -642,7 +642,7 @@
                 <span></span>
             </button>
             <div class="header-content">
-                <h1><span class="icon">📊</span> Inventario Diario</h1>
+                <h1><span class="icon">📦</span> Inventario con lotes</h1>
                 <p>Extrae, analiza y procesa datos de Excel - Omnilife</p>
                 <!-- Eliminar los controles de escaneo de aquí -->
             </div>
@@ -1357,7 +1357,8 @@
                 };
                 
                 // Guardar en Firestore usando la fecha como ID del documento
-                db.collection('inventario_diario').doc(fechaInventario).set(datosParaGuardar)
+                // CAMBIO: usar la colección 'inventario_por_lotes' en lugar de 'inventario_diario'
+                db.collection('inventario_por_lotes').doc(fechaInventario).set(datosParaGuardar)
                     .then(() => {
                         showLoading(false);
                         alert('Datos guardados exitosamente en la base de datos');
