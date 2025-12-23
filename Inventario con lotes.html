@@ -1197,16 +1197,22 @@
                 const ws = workbookGlobal.Sheets[sheetName];
                 const json = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
                 excelData = json;
-                // obtener encabezados
-                const range = XLSX.utils.decode_range(ws['!ref']);
-                const headers = [];
-                for (let C = range.s.c; C <= range.e.c; ++C) {
-                    const cellAddr = XLSX.utils.encode_cell({ r: range.s.r, c: C });
-                    const cell = ws[cellAddr];
-                    let hdr = cell && cell.v ? String(cell.v).trim() : `COL_${C}`;
-                    headers.push(hdr);
+                // Usar las claves reales del JSON para evitar desajustes con los encabezados (p. ej. DISPLAY)
+                const firstRow = Array.isArray(json) && json.length ? json[0] : null;
+                if (firstRow && typeof firstRow === 'object') {
+                    columnNames = Object.keys(firstRow);
+                } else {
+                    // Fallback: leer cabeceras desde la primera fila de la hoja
+                    const range = XLSX.utils.decode_range(ws['!ref']);
+                    const headers = [];
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                        const cellAddr = XLSX.utils.encode_cell({ r: range.s.r, c: C });
+                        const cell = ws[cellAddr];
+                        let hdr = cell && cell.v ? String(cell.v).trim() : `COL_${C}`;
+                        headers.push(hdr);
+                    }
+                    columnNames = headers;
                 }
-                columnNames = headers;
                 // habilitar UI
                 document.getElementById('analyzeBtn')?.removeAttribute('disabled');
                 document.getElementById('exportBtn')?.removeAttribute('disabled');
