@@ -528,23 +528,36 @@ input:checked + .slider:before {
         let historicoActualFecha = null;
         let historicoActualGeneral = null;
 
+        // === Utilidades de normalización de claves/valores (para DISPLAY, FISICO, etc.) ===
+        function _normKey(k){
+            return String(k||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,'').trim();
+        }
+        function _findKey(obj, target){
+            const t=_normKey(target);
+            for(const k of Object.keys(obj||{})){
+                if(_normKey(k).includes(t)) return k; // incluye por si hay sufijos/prefijos
+            }
+            return null;
+        }
+        function _getVal(obj, candidates){
+            // candidates: array de posibles nombres preferidos (p.ej. ['Display'])
+            for(const c of candidates){ if(c && Object.prototype.hasOwnProperty.call(obj,c)) return obj[c]; }
+            // fallback por normalización
+            const dyn=_findKey(obj, candidates[0]||'');
+            return dyn ? obj[dyn] : '';
+        }
+        function _isZero(v){ return v===0 || v==='0' || v===0.0; }
+
         // Normaliza la fecha a yyyy-mm-dd
         function normalizarFecha(fecha) {
             if (!fecha) return "";
             if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
-                const [dd, mm, yyyy] = fecha.split('/');
-                return `${yyyy}-${mm}-${dd}`;
-            }
-            if (/^\d{4}\/\d{2}\/\d{2}$/.test(fecha)) {
-                return fecha.replace(/\//g, '-');
-            }
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) { const [dd, mm, yyyy] = fecha.split('/'); return `${yyyy}-${mm}-${dd}`; }
+            if (/^\d{4}\/\d{2}\/\d{2}$/.test(fecha)) { return fecha.replace(/\//g, '-'); }
             return fecha;
         }
 
-        function showLoading(show) {
-            loading.classList.toggle("show", !!show);
-        }
+        function showLoading(show) { loading.classList.toggle("show", !!show); }
 
         // Toggle switch para cambiar tipo de histórico
         toggleTipoHistorico.addEventListener('change', () => {
@@ -564,10 +577,7 @@ input:checked + .slider:before {
         // Buscar histórico por fecha (inventario diario)
         async function buscarHistoricoFecha() {
             const fecha = fechaInputFecha.value;
-            if (!fecha) {
-                alert("Por favor selecciona una fecha para buscar.");
-                return;
-            }
+            if (!fecha) { alert("Por favor selecciona una fecha para buscar."); return; }
             
             console.log("Buscando inventario diario para fecha:", fecha);
             showLoading(true);
@@ -680,76 +690,60 @@ input:checked + .slider:before {
                     return;
                 }
                 
-                console.log(`📊 Procesando ${datosArray.length} registros`);
+                // Asegurar que el arreglo detectado quede en historicoActualFecha.data para permitir edición/guardado
+                historicoActualFecha.data = datosArray;
                 
-                // Actualizar la referencia para que el resto del código funcione
-                if (!data.data) {
-                    data.data = datosArray;
-                }
+                // Construir mapeo de claves reales detectadas (incluye DISPLAY)
+                const sample = datosArray[0] || {};
+                const keyMap = {
+                    material: _findKey(sample,'MATERIAL') || 'Material',
+                    descripcion: _findKey(sample,'TEXTOBREVEDEMATERIAL') || 'Texto breve de material',
+                    sap: _findKey(sample,'SAP') || 'SAP',
+                    fisico: _findKey(sample,'FISICO') || 'Físico',
+                    display: _findKey(sample,'DISPLAY') || 'Display',
+                    merma: _findKey(sample,'MERMA') || 'Merma',
+                    diferencia: _findKey(sample,'DIFERENCIA') || _findKey(sample,'DIFERENCIAS') || 'Diferencias'
+                };
+                historicoActualFecha._keys = keyMap;
 
                 infoDivFecha.innerHTML = `
                     <b>Archivo:</b> ${data.fileName || data.filename || data.archivo || '-'} &nbsp; 
                     <b>Fecha:</b> ${data.fecha || data.date || claveEncontrada} &nbsp; 
                     <b>Registros:</b> ${data.rowCount || datosArray.length || '-'}
                 `;
-                
                 infoDivFecha.innerHTML += `
                     <button id="btnEditarFecha" style="margin-left:18px;padding:7px 18px;border-radius:7px;background:#fbbf24;color:#fff;font-weight:700;border:none;cursor:pointer;">✏️ Editar Registro</button>
                     <button id="btnGuardarFecha" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#22c55e;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">💾 Guardar Cambios</button>
                     <button id="btnImportarSAP" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#6366f1;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">📤 Importar SAP</button>
                 `;
                 
-                if (datosArray.length === 0) {
-                    tablaBodyFecha.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#ef4444;">No hay productos en este histórico.</td></tr>`;
-                } else {
-                    console.log("Muestra del primer registro:", datosArray[0]);
-                    console.log("Propiedades del primer registro:", Object.keys(datosArray[0]));
-                    
-                    datosArray.forEach((item, idx) => {
-                        // Buscar diferencias en diferentes posibles nombres
-                        let diferencia = item['Diferencias'] ?? item['DIFERENCIAS'] ?? item['diferencias'] ?? 
-                                       item['Diferencia'] ?? item['DIFERENCIA'] ?? item['diferencia'] ?? '';
-                        if (diferencia === undefined || diferencia === null || diferencia === '') diferencia = '';
-                        if (diferencia === 0) diferencia = 0;
-                        
-                        // Buscar material in diferentes posibles nombres
-                        let material = item['Material'] ?? item['MATERIAL'] ?? item['material'] ?? 
-                                     item['Codigo'] ?? item['CODIGO'] ?? item['codigo'] ?? '';
-                        
-                        // Buscar descripción en diferentes posibles nombres
-                        let descripcion = item['Texto breve de material'] ?? item['Descripcion'] ?? 
-                                        item['DESCRIPCION'] ?? item['descripcion'] ?? item['Descripción'] ?? '';
-                        
-                        // Buscar SAP in diferentes posibles nombres
-                        let sap = item['SAP'] ?? item['sap'] ?? item['Sap'] ?? '';
-                        
-                        // Buscar físico en diferentes posibles nombres
-                        let fisico = item['Físico'] ?? item['FISICO'] ?? item['fisico'] ?? 
-                                   item['Fisico'] ?? item['FÍSICO'] ?? '';
-                        
-                        // Buscar display en diferentes posibles nombres
-                        let display = item['Display'] ?? item['DISPLAY'] ?? item['display'] ?? '';
-                        
-                        // Buscar merma en diferentes posibles nombres
-                        let merma = item['Merma'] ?? item['MERMA'] ?? item['merma'] ?? '';
-                        
-                        tablaBodyFecha.innerHTML += `
-                            <tr>
-                                <td class="code-cell">${material}</td>
-                                <td class="product-cell">${descripcion}</td>
-                                <td>${sap}</td>
-                                <td class="editable-fisico">${fisico === 0 ? 0 : (fisico || '')}</td>
-                                <td class="editable-display">${display === 0 ? 0 : (display || '')}</td>
-                                <td class="editable-merma">${merma === 0 ? 0 : (merma || '')}</td>
-                                <td>${diferencia}</td>
-                            </tr>
-                        `;
-                    });
-                }
-                
+                // Render de filas usando las claves reales; asegura mostrar DISPLAY
+                tablaBodyFecha.innerHTML = '';
+                datosArray.forEach((item, idx) => {
+                    const mat = item[keyMap.material] ?? '';
+                    const desc = item[keyMap.descripcion] ?? '';
+                    const sap = item[keyMap.sap] ?? '';
+                    const fisico = item[keyMap.fisico];
+                    const display = item[keyMap.display];
+                    const merma = item[keyMap.merma];
+                    let diferencia = item[keyMap.diferencia];
+                    if (diferencia === undefined || diferencia === null || diferencia === '') diferencia = '';
+                    if (_isZero(diferencia)) diferencia = 0;
+                    tablaBodyFecha.innerHTML += `
+                        <tr>
+                            <td class="code-cell">${mat ?? ''}</td>
+                            <td class="product-cell">${desc ?? ''}</td>
+                            <td>${_isZero(sap) ? 0 : (sap ?? '')}</td>
+                            <td class="editable-fisico">${_isZero(fisico) ? 0 : (fisico ?? '')}</td>
+                            <td class="editable-display">${_isZero(display) ? 0 : (display ?? '')}</td>
+                            <td class="editable-merma">${_isZero(merma) ? 0 : (merma ?? '')}</td>
+                            <td>${diferencia}</td>
+                        </tr>
+                    `;
+                });
+
                 tablaContainerFecha.style.display = 'block';
                 btnExportarFecha.style.display = 'inline-flex';
-                
             } catch (error) {
                 console.error("Error al buscar el histórico:", error);
                 infoDivFecha.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico: ${error.message}</div>`;
@@ -763,84 +757,44 @@ input:checked + .slider:before {
                 const btnEditar = document.getElementById('btnEditarFecha');
                 const btnGuardar = document.getElementById('btnGuardarFecha');
                 const btnImportarSAP = document.getElementById('btnImportarSAP');
-                
-                if (btnEditar) {
-                    btnEditar.onclick = function() {
-                        habilitarEdicionInventarioDiario();
-                        btnEditar.style.display = 'none';
-                        btnGuardar.style.display = '';
-                        if (btnImportarSAP) btnImportarSAP.style.display = '';
-                    };
-                }
-                
-                if (btnGuardar) {
-                    btnGuardar.onclick = function() {
-                        guardarCambiosInventarioDiario();
-                    };
-                }
-                
-                if (btnImportarSAP) {
-                    btnImportarSAP.onclick = function() {
-                        mostrarDialogoImportarSAP();
-                    };
-                }
+                if (btnEditar) { btnEditar.onclick = function(){ habilitarEdicionInventarioDiario(); btnEditar.style.display='none'; if(btnGuardar) btnGuardar.style.display=''; if(btnImportarSAP) btnImportarSAP.style.display=''; }; }
+                if (btnGuardar) { btnGuardar.onclick = function(){ guardarCambiosInventarioDiario(); }; }
+                if (btnImportarSAP) { btnImportarSAP.onclick = function(){ mostrarDialogoImportarSAP(); }; }
             }, 100);
         }
 
-        // === PATCH: Reemplazo de habilitarEdicionInventarioDiario para forzar evaluación matemática ===
-function habilitarEdicionInventarioDiario() {
-    const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
-    function evalMath(raw){
-        let s=(raw||'').toString().trim();
-        if(!s) return 0; while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1); if(!s) return 0;
-        try{const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const norm=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+norm+')')(); if(typeof r==='number'&&isFinite(r)) return r;}catch{}
-        const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f;
-    }
-    function format(n){return Number.isInteger(n)?n:parseFloat(n.toFixed(4));}
-    function bindCalc(input){
-        if(!input || input.dataset.calcBound) return; input.dataset.calcBound='1';
-        const idx=parseInt(input.getAttribute('data-row'),10);
-        const commit=()=>{
-            const v=format(evalMath(input.value)); input.value=v;
-            // Recalcular diferencia fila
-            const tr=input.closest('tr'); if(!tr) return;
-            const sap=parseFloat(tr.querySelector('td:nth-child(3)')?.textContent)||0;
-            const fisico=evalMath(tr.querySelector('input.input-fisico[data-row="'+idx+'"]')?.value);
-            const display=evalMath(tr.querySelector('input.input-display[data-row="'+idx+'"]')?.value);
-            const merma=evalMath(tr.querySelector('input.input-merma[data-row="'+idx+'"]')?.value);
-            const diff=fisico+display+merma - sap;
-            const diffCell=tr.querySelector('td:last-child'); if(diffCell) diffCell.textContent=isNaN(diff)?'':format(diff);
-        };
-        ['blur','change'].forEach(ev=>input.addEventListener(ev,commit));
-        input.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key==='Tab'){ commit(); }});
-    }
-    filas.forEach((tr, idx) => {
-        const crear = (tdSelector, tipo) => {
-            const td = tr.querySelector(tdSelector);
-            if (td && !td.querySelector('input')) {
-                const valor = td.textContent.trim();
-                // map tipo -> clase
-                let clase = 'input-fisico';
-                if (tipo === 'Display') clase = 'input-display';
-                else if (tipo === 'Merma') clase = 'input-merma';
-                td.innerHTML = `<input type="text" data-row="${idx}" class="calc-eval ${clase}" style="width:80px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;" value="${valor}">`;
-            }
-        };
-        crear('.editable-fisico','Físico');
-        crear('.editable-display','Display');
-        crear('.editable-merma','Merma');
-        // Vincular
-        bindCalc(tr.querySelector('input.input-fisico[data-row="'+idx+'"]'));
-        bindCalc(tr.querySelector('input.input-display[data-row="'+idx+'"]'));
-        bindCalc(tr.querySelector('input.input-merma[data-row="'+idx+'"]'));
-    });
-}
+        // === PATCH: Reemplazo de habilitarEdicionInventarioDiario permanece igual, recalcula diferencia ===
+        
+        // Habilita edición en Inventario Diario: convierte celdas Físico/Display/Merma en inputs
+        function habilitarEdicionInventarioDiario(){
+            const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
+            filas.forEach((tr)=>{
+                function toInput(selector, inputClass){
+                    const td = tr.querySelector(selector);
+                    if(!td) return;
+                    if(td.querySelector('input')) return; // ya editable
+                    const val = (td.textContent||'').trim();
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = val;
+                    input.className = inputClass; // .input-fisico | .input-display | .input-merma
+                    input.style.cssText = 'width:120px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;';
+                    const numVal = parseFloat(val.replace(/,/g,'.'));
+                    if(!isNaN(numVal) && numVal < 0) input.classList.add('input-negativo');
+                    td.innerHTML = '';
+                    td.appendChild(input);
+                }
+                toInput('.editable-fisico','input-fisico');
+                toInput('.editable-display','input-display');
+                toInput('.editable-merma','input-merma');
+            });
+        }
 
-        // Guarda los cambios editados en Firestore para Inventario Diario
+        // Guarda los cambios editados en Firestore para Inventario Diario (respeta claves reales)
 async function guardarCambiosInventarioDiario(){
     if(!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) { alert('No hay datos para guardar.'); return; }
+    const K = historicoActualFecha._keys || {};
     const filas = document.querySelectorAll('#tablaHistBodyFecha tr');
-    // Actualizar el arreglo en memoria con los inputs
     function num(v){
         let s=(v||'').toString().trim();
         if(!s) return 0; while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
@@ -852,36 +806,28 @@ async function guardarCambiosInventarioDiario(){
         const fis = tr.querySelector('.input-fisico')?.value;
         const dis = tr.querySelector('.input-display')?.value;
         const mer = tr.querySelector('.input-merma')?.value;
-        const sap = parseFloat(tr.querySelector('td:nth-child(3)')?.textContent)||0;
-        if(fis!==undefined) item['Físico'] = num(fis);
-        if(dis!==undefined) item['Display'] = num(dis);
-        if(mer!==undefined) item['Merma'] = num(mer);
-        const diferencia = (item['Físico']||0) + (item['Display']||0) + (item['Merma']||0) - sap;
-        // intentar guardar en cualquiera de las llaves posibles
-        item['DIFERENCIA'] = diferencia;
-        item['Diferencia'] = diferencia;
-        item['Diferencias'] = diferencia;
+        const sapCell = tr.querySelector('td:nth-child(3)');
+        const sap = num(sapCell ? sapCell.textContent : (item[K.sap]??0));
+        if(fis!==undefined) item[K.fisico||'Físico'] = num(fis);
+        if(dis!==undefined) item[K.display||'Display'] = num(dis);
+        if(mer!==undefined) item[K.merma||'Merma'] = num(mer);
+        const diferencia = (item[K.fisico||'Físico']||0) + (item[K.display||'Display']||0) + (item[K.merma||'Merma']||0) - sap;
+        if (K.diferencia) { item[K.diferencia] = diferencia; }
+        // además escribir en claves comunes por compatibilidad
+        item['DIFERENCIA'] = diferencia; item['Diferencia'] = diferencia; item['Diferencias'] = diferencia;
     });
     try{
         showLoading(true);
         const fechaKey = historicoActualFecha._docKey;
-        const updateData = {
-            data: historicoActualFecha.data,
-            lastModified: new Date().toISOString(),
-            fecha: historicoActualFecha.fecha || fechaInputFecha.value
-        };
+        const updateData = { data: historicoActualFecha.data, lastModified: new Date().toISOString(), fecha: historicoActualFecha.fecha || fechaInputFecha.value };
         await db.collection('inventario_diario').doc(fechaKey).set(updateData, { merge: true });
         alert('Cambios guardados correctamente.');
-        // salir de modo edición: reconstruir tabla
         await buscarHistoricoFecha();
-    }catch(err){
-        alert('Error al guardar cambios: '+err.message);
-    }finally{
-        showLoading(false);
-    }
+    }catch(err){ alert('Error al guardar cambios: '+err.message); }
+    finally{ showLoading(false); }
 }
 
-        // Buscar histórico general
+        // Buscar histórico general (inventario con lotes) – incluir DISPLAY si existe
         async function buscarHistoricoGeneral() {
             const fecha = fechaInputGeneral.value;
             if (!fecha) { alert("Por favor selecciona una fecha para buscar."); return; }
@@ -894,50 +840,39 @@ async function guardarCambiosInventarioDiario(){
             historicoActualGeneral = null;
 
             try {
-                // Normalizar clave de documento yyyy-mm-dd
                 let fechaKey = normalizarFecha(fecha);
-                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(fechaKey)) {
-                    const [yyyy, mm, dd] = fechaKey.split('-');
-                    fechaKey = `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
-                }
-                console.log("Buscando inventario con lotes para fecha:", fechaKey);
-
-                // Leer de la colección de lotes
+                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(fechaKey)) { const [yyyy, mm, dd] = fechaKey.split('-'); fechaKey = `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`; }
                 const docRef = db.collection('inventario_por_lotes').doc(fechaKey);
                 const docSnap = await docRef.get();
-                if (!docSnap.exists) {
-                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico de inventario con lotes para la fecha seleccionada.</div>";
-                    noHistGeneral.style.display = 'block';
-                    showLoading(false);
-                    return;
-                }
+                if (!docSnap.exists) { infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>No hay histórico de inventario con lotes para la fecha seleccionada.</div>"; noHistGeneral.style.display = 'block'; showLoading(false); return; }
 
                 const data = docSnap.data();
-                const datos = data.datos; // contrato: arreglo exacto en 'datos'
-                if (!Array.isArray(datos)) {
-                    infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>El documento debe contener la clave 'datos' con un arreglo válido.</div>";
-                    noHistGeneral.style.display = 'block';
-                    showLoading(false);
-                    return;
-                }
+                const datos = data.datos;
+                if (!Array.isArray(datos)) { infoDivGeneral.innerHTML = "<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>El documento debe contener la clave 'datos' con un arreglo válido.</div>"; noHistGeneral.style.display = 'block'; showLoading(false); return; }
 
-                // Columnas exactas esperadas para Inventario con lotes
-                const columnasLotes = [
+                // Detectar clave DISPLAY si existe
+                const sample = datos[0] || {};
+                const displayKey = _findKey(sample,'DISPLAY');
+
+                // Columnas base esperadas
+                const columnasBase = [
                     'Centro','Almacén','Material','Texto breve de material','Lote',
                     'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
                     'En control calidad','Stock no libre','Bloqueado','Devoluciones',
                     'Stock bloqueado EM valorado'
                 ];
-                const visibles = new Set(['Material','Texto breve de material','Lote','Libre utilización','FISICO']);
-                // Validación mínima de estructura
-                const faltantes = columnasLotes.filter(k => !Object.prototype.hasOwnProperty.call(datos[0]||{}, k));
-                if (faltantes.length) {
-                    console.warn('Campos faltantes en los datos:', faltantes);
+                // Clonar y si hay DISPLAY insertarlo después de FISICO
+                const columnas = columnasBase.slice();
+                if (displayKey && !columnas.includes(displayKey)) {
+                    const idxFis = columnas.indexOf('FISICO');
+                    if (idxFis >= 0) columnas.splice(idxFis+1, 0, displayKey); else columnas.push(displayKey);
                 }
+                const visibles = new Set(['Material','Texto breve de material','Lote','Libre utilización','FISICO']);
+                if (displayKey) visibles.add(displayKey);
 
-                historicoActualGeneral = { ...data, datos, _docKey: fechaKey, _columnas: columnasLotes };
+                historicoActualGeneral = { ...data, datos, _docKey: fechaKey, _columnas: columnas, _displayKey: displayKey };
 
-                // Encabezado e info + botones de edición/guardado
+                // Encabezado e info
                 infoDivGeneral.innerHTML = `
                     <b>Fecha:</b> ${data.fecha || fechaKey} &nbsp; 
                     <b>Archivo:</b> ${data.fileName || '-'} &nbsp; 
@@ -946,25 +881,19 @@ async function guardarCambiosInventarioDiario(){
                     <button id="btnGuardarGeneral" style="margin-left:10px;padding:7px 18px;border-radius:7px;background:#22c55e;color:#fff;font-weight:700;border:none;cursor:pointer;display:none;">💾 Guardar Cambios</button>
                 `;
 
-                // Render de tabla con columnas exactas de lotes (solo lectura inicialmente)
+                // Render tabla
                 const thead = document.querySelector('#tablaHistGeneral thead tr');
                 thead.innerHTML = '';
-                columnasLotes.forEach(col => {
-                    const th=document.createElement('th');
-                    th.textContent=col;
-                    if(!visibles.has(col)) th.classList.add('col-oculta');
-                    thead.appendChild(th);
-                });
+                columnas.forEach(col => { const th=document.createElement('th'); th.textContent=col; if(!visibles.has(col)) th.classList.add('col-oculta'); thead.appendChild(th); });
 
                 tablaBodyGeneral.innerHTML = '';
                 datos.forEach(item => {
                     const tr = document.createElement('tr');
-                    columnasLotes.forEach(col => {
+                    columnas.forEach(col => {
                         const td = document.createElement('td');
                         const val = item[col];
-                        td.textContent = (val === 0 ? 0 : (val ?? ''));
-                        // Marcar negativos en columnas numéricas
-                        if ((col === 'Libre utilización' || col === 'FISICO')) {
+                        td.textContent = (_isZero(val) ? 0 : (val ?? ''));
+                        if ((col === 'Libre utilización' || col === 'FISICO' || col === displayKey)) {
                             const numVal = parseFloat(String(val).toString().replace(/,/g,'.'));
                             if (!isNaN(numVal) && numVal < 0) td.classList.add('negativo');
                         }
@@ -979,216 +908,120 @@ async function guardarCambiosInventarioDiario(){
                 tablaContainerGeneral.style.display = 'block';
                 btnExportarGeneral.style.display = 'inline-flex';
 
-                // Eventos de edición/guardado
                 setTimeout(() => {
                     const btnEditarGen = document.getElementById('btnEditarGeneral');
                     const btnGuardarGen = document.getElementById('btnGuardarGeneral');
-                    if (btnEditarGen) {
-                        btnEditarGen.onclick = () => { 
-                            habilitarEdicionInventarioGeneral();
-                            btnEditarGen.style.display='none';
-                            if (btnGuardarGen) btnGuardarGen.style.display='';
-                        };
-                    }
-                    if (btnGuardarGen) {
-                        btnGuardarGen.onclick = () => { guardarCambiosInventarioGeneral(); };
-                    }
+                    if (btnEditarGen) { btnEditarGen.onclick = () => { habilitarEdicionInventarioGeneral(); btnEditarGen.style.display='none'; if (btnGuardarGen) btnGuardarGen.style.display=''; }; }
+                    if (btnGuardarGen) { btnGuardarGen.onclick = () => { guardarCambiosInventarioGeneral(); }; }
                 }, 50);
             } catch (error) {
-                console.error('Error al buscar el histórico de inventario con lotes:', error);
                 infoDivGeneral.innerHTML = `<div style='color:#ef4444;font-weight:bold;margin-top:8px;'>Error al buscar el histórico de inventario con lotes: ${error.message}</div>`;
                 noHistGeneral.style.display = 'block';
-            } finally {
-                showLoading(false);
-            }
+            } finally { showLoading(false); }
         }
 
-        // Habilita edición en las columnas Lote, SAP, REAL (convierte a input solo al editar)
+        // Habilita edición en columnas (incluye DISPLAY si existe)
 function habilitarEdicionInventarioGeneral() {
-    const cols = (historicoActualGeneral && historicoActualGeneral._columnas) || [
-        'Centro','Almacén','Material','Texto breve de material','Lote',
-        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
-        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
-        'Stock bloqueado EM valorado'
-    ];
+    const cols = (historicoActualGeneral && historicoActualGeneral._columnas) || [];
+    const displayKey = historicoActualGeneral && historicoActualGeneral._displayKey;
+    const editableSet = new Set(['Libre utilización','FISICO']); if (displayKey) editableSet.add(displayKey);
     const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
     filas.forEach((tr, idx) => {
         cols.forEach((campo, colIdx) => {
-            // Limitar edición solo a Libre utilización y FISICO (Lote NO editable)
-            if (campo !== 'Libre utilización' && campo !== 'FISICO') return;
-            const td = tr.children[colIdx];
-            if (!td) return;
+            if (!editableSet.has(campo)) return;
+            const td = tr.children[colIdx]; if (!td) return;
             if (!td.querySelector('input')) {
                 const val = td.textContent.trim();
                 const input = document.createElement('input');
-                input.type = 'text';
-                input.value = val;
-                input.dataset.row = String(idx);
-                input.dataset.field = campo;
-                input.className = 'calc-eval input-general';
+                input.type = 'text'; input.value = val; input.dataset.row = String(idx); input.dataset.field = campo; input.className = 'calc-eval input-general';
                 input.style.cssText = 'width:140px;padding:4px 8px;border-radius:6px;border:1.2px solid #6366f1;';
-                // color rojo si negativo en numéricos
-                if (campo === 'Libre utilización' || campo === 'FISICO') {
-                    const numVal = parseFloat(val.replace(/,/g,'.'));
-                    if (!isNaN(numVal) && numVal < 0) input.classList.add('input-negativo');
-                }
-                td.innerHTML = '';
-                td.appendChild(input);
+                const numVal = parseFloat(val.replace(/,/g,'.')); if (!isNaN(numVal) && numVal < 0) input.classList.add('input-negativo');
+                td.innerHTML = ''; td.appendChild(input);
             }
         });
     });
 }
 
-// Guarda los cambios editados en Firestore para Inventario General (inventario por lotes)
+// Guarda cambios en Inventario con lotes incluyendo DISPLAY si existe
 async function guardarCambiosInventarioGeneral() {
     if (!historicoActualGeneral || !Array.isArray(historicoActualGeneral.datos)) { alert('No hay datos para guardar.'); return; }
-    const datos = historicoActualGeneral.datos;
-    const cols = (historicoActualGeneral && historicoActualGeneral._columnas) || [
-        'Centro','Almacén','Material','Texto breve de material','Lote',
-        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
-        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
-        'Stock bloqueado EM valorado'
-    ];
-    const numericSet = new Set(['Libre utilización','FISICO']);
-    function evalNumero(raw){
-        let s=(raw||'').toString().trim();
-        if(!s) return 0;
-        while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1);
-        try{
-            const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
-            if(!limpio.trim()) return 0;
-            const norm=limpio.replace(/,/g,'.');
-            const r=Function('"use strict";return('+norm+')')();
-            if(typeof r==='number' && isFinite(r)) return r;
-        }catch{}
-        const f=parseFloat(s.replace(/,/g,'.'));
-        return isNaN(f)?0:f;
-    }
+    const datos = historicoActualGeneral.datos; const cols = historicoActualGeneral._columnas || []; const displayKey = historicoActualGeneral._displayKey;
+    const numericSet = new Set(['Libre utilización','FISICO']); if (displayKey) numericSet.add(displayKey);
+    function evalNumero(raw){ let s=(raw||'').toString().trim(); if(!s) return 0; while(/[+\-*/.(]$/.test(s)) s=s.slice(0,-1); try{ const limpio=s.replace(/[^0-9+\-*/().,\s]/g,''); if(!limpio.trim()) return 0; const norm=limpio.replace(/,/g,'.'); const r=Function('"use strict";return('+norm+')')(); if(typeof r==='number' && isFinite(r)) return r; }catch{} const f=parseFloat(s.replace(/,/g,'.')); return isNaN(f)?0:f; }
     try {
         showLoading(true);
         const filas = document.querySelectorAll('#tablaHistBodyGeneral tr');
         filas.forEach((tr, idx) => {
             const item = datos[idx] || (datos[idx] = {});
             cols.forEach((campo, colIdx) => {
-                const td = tr.children[colIdx];
-                if (!td) return;
+                const td = tr.children[colIdx]; if (!td) return;
                 const input = td.querySelector('input');
                 let valor = input ? input.value : td.textContent;
-                if (numericSet.has(campo)) {
-                    valor = evalNumero(valor);
-                }
-                item[campo] = (valor === 0) ? 0 : (valor ?? '');
+                if (numericSet.has(campo)) { valor = evalNumero(valor); }
+                item[campo] = (_isZero(valor) ? 0 : (valor ?? ''));
             });
         });
         const fechaKey = historicoActualGeneral._docKey;
-        const updateData = {
-            datos: datos,
-            lastModified: new Date().toISOString(),
-            fecha: historicoActualGeneral.fecha || document.getElementById('fechaGeneral')?.value,
-            fileName: historicoActualGeneral.fileName || historicoActualGeneral.filename || historicoActualGeneral.archivo
-        };
-        // Remover claves con undefined para evitar error de Firestore
+        const updateData = { datos: datos, lastModified: new Date().toISOString(), fecha: historicoActualGeneral.fecha || document.getElementById('fechaGeneral')?.value, fileName: historicoActualGeneral.fileName || historicoActualGeneral.filename || historicoActualGeneral.archivo };
         Object.keys(updateData).forEach(k => { if (updateData[k] === undefined) delete updateData[k]; });
         await db.collection('inventario_por_lotes').doc(fechaKey).set(updateData, { merge: true });
         alert('Cambios guardados correctamente en Inventario con lotes.');
-        const btnEditarGen = document.getElementById('btnEditarGeneral');
-        const btnGuardarGen = document.getElementById('btnGuardarGeneral');
-        if (btnEditarGen && btnGuardarGen) { btnEditarGen.style.display=''; btnGuardarGen.style.display='none'; }
+        const btnEditarGen = document.getElementById('btnEditarGeneral'); const btnGuardarGen = document.getElementById('btnGuardarGeneral'); if (btnEditarGen && btnGuardarGen) { btnEditarGen.style.display=''; btnGuardarGen.style.display='none'; }
         await buscarHistoricoGeneral();
-    } catch (error) {
-        alert('Error al guardar cambios: ' + error.message);
-    } finally {
-        showLoading(false);
-    }
+    } catch (error) { alert('Error al guardar cambios: ' + error.message); } finally { showLoading(false); }
 }
 
-        // Exportar a Excel (fecha)
+        // Exportar a Excel (fecha) – usar claves reales
         function exportarExcelFecha() {
-            if (!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) {
-                alert("No hay datos para exportar.");
-                return;
-            }
+            if (!historicoActualFecha || !Array.isArray(historicoActualFecha.data)) { alert("No hay datos para exportar."); return; }
             showLoading(true);
             setTimeout(() => {
                 try {
-                    const wsData = [
-                        ["Material", "Texto breve de material", "SAP", "Físico", "Display", "Merma", "Diferencias"]
-                    ];
+                    const K = historicoActualFecha._keys || {};
+                    const wsData = [["Material", "Texto breve de material", "SAP", "Físico", "Display", "Merma", "Diferencias"]];
                     historicoActualFecha.data.forEach(item => {
-                        // Buscar el valor de diferencia en cualquiera de los posibles nombres
-                        let diferencia = 
-                            item['DIFERENCIA'] ??
-                            item['DIFERENCIAS'] ?? 
-                            item['diferencia'] ?? 
-                            item['diferencias'] ?? 
-                            item['Diferencia'] ?? 
-                            item['Diferencias'] ?? 
-                            '';
+                        let diferencia = item[K.diferencia] ?? item['DIFERENCIA'] ?? item['DIFERENCIAS'] ?? item['Diferencia'] ?? item['Diferencias'] ?? '';
                         if (diferencia === undefined || diferencia === null || diferencia === '') diferencia = '';
-                        if (diferencia === 0) diferencia = 0;
+                        if (_isZero(diferencia)) diferencia = 0;
                         wsData.push([
-                            item['Material'] || item['material'] || '',
-                            item['Texto breve de material'] || item['descripcion'] || '',
-                            item['SAP'] || item['sap'] || '',
-                            item['Físico'] === 0 ? 0 : (item['Físico'] || item['fisico'] || ''),
-                            item['Display'] === 0 ? 0 : (item['Display'] || item['display'] || ''),
-                            item['Merma'] === 0 ? 0 : (item['Merma'] || item['merma'] || ''),
+                            item[K.material] ?? '',
+                            item[K.descripcion] ?? '',
+                            _isZero(item[K.sap]) ? 0 : (item[K.sap] ?? ''),
+                            _isZero(item[K.fisico]) ? 0 : (item[K.fisico] ?? ''),
+                            _isZero(item[K.display]) ? 0 : (item[K.display] ?? ''),
+                            _isZero(item[K.merma]) ? 0 : (item[K.merma] ?? ''),
                             diferencia
                         ]);
                     });
                     const ws = XLSX.utils.aoa_to_sheet(wsData);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "Histórico");
-                    // === Cambiar nombre según vista y fecha ===
                     const fechaNombre = historicoActualFecha.fecha || document.getElementById('fechaHist')?.value || '';
-                    let nombreArchivo = "inventario_diario.xlsx";
-                    if (fechaNombre) {
-                        nombreArchivo = `inventario_diario_${fechaNombre}.xlsx`;
-                    }
+                    let nombreArchivo = "inventario_diario.xlsx"; if (fechaNombre) { nombreArchivo = `inventario_diario_${fechaNombre}.xlsx`; }
                     XLSX.writeFile(wb, nombreArchivo);
-                } catch (e) {
-                    alert("Error al exportar a Excel: " + e.message);
-                } finally {
-                    showLoading(false);
-                }
+                } catch (e) { alert("Error al exportar a Excel: " + e.message); }
+                finally { showLoading(false); }
             }, 100);
         }
 
-        // Exportar a Excel (general)
+        // Exportar a Excel (general) – usa columnas detectadas (incluye DISPLAY si existe)
         function exportarExcelGeneral() {
-            let datos = null;
-            if (historicoActualGeneral && Array.isArray(historicoActualGeneral.datos)) {
-                datos = historicoActualGeneral.datos;
-            }
+            let datos = null; if (historicoActualGeneral && Array.isArray(historicoActualGeneral.datos)) { datos = historicoActualGeneral.datos; }
             if (!datos) { alert('No hay datos para exportar.'); return; }
             showLoading(true);
             setTimeout(() => {
                 try {
-                    const columnas = [
-                        'Centro','Almacén','Material','Texto breve de material','Lote',
-                        'Libre utilización','FISICO','Unidad medida base','Moneda','Trans./Trasl.',
-                        'En control calidad','Stock no libre','Bloqueado','Devoluciones',
-                        'Stock bloqueado EM valorado'
-                    ];
+                    const columnas = historicoActualGeneral._columnas || [];
                     const wsData = [columnas];
-                    datos.forEach(item => {
-                        wsData.push(columnas.map(col => item[col] === 0 ? 0 : (item[col] ?? '')));
-                    });
+                    datos.forEach(item => { wsData.push(columnas.map(col => (_isZero(item[col]) ? 0 : (item[col] ?? '')))); });
                     const ws = XLSX.utils.aoa_to_sheet(wsData);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, 'Inventario con lotes');
-                    // === Cambiar nombre según vista y fecha ===
                     const fechaNombre = historicoActualGeneral && (historicoActualGeneral.fecha || document.getElementById('fechaGeneral')?.value || '');
-                    let nombreArchivo = 'inventario_con_lotes.xlsx';
-                    if (fechaNombre) {
-                        nombreArchivo = `inventario_con_lotes_${fechaNombre}.xlsx`;
-                    }
+                    let nombreArchivo = 'inventario_con_lotes.xlsx'; if (fechaNombre) { nombreArchivo = `inventario_con_lotes_${fechaNombre}.xlsx`; }
                     XLSX.writeFile(wb, nombreArchivo);
-                } catch (e) {
-                    alert('Error al exportar a Excel: ' + e.message);
-                } finally {
-                    showLoading(false);
-                }
+                } catch (e) { alert('Error al exportar a Excel: ' + e.message); }
+                finally { showLoading(false); }
             }, 100);
         }
 
@@ -1379,6 +1212,7 @@ async function guardarCambiosInventarioGeneral() {
             document.addEventListener('keydown', e=>{ if((e.key==='Enter'||e.key==='Tab') && e.target && e.target.matches('.input-fisico, .input-display, .input-merma, .input-general-sap, .input-general-real')) { normalizar(e); } }, true);
         })();
 
+
 // === Evaluar expresiones aritméticas en inputs (Libre utilización, FISICO) ===
 (function(){
     function evalExpr(str){
@@ -1389,6 +1223,7 @@ async function guardarCambiosInventarioGeneral() {
         if(!s) return 0;
         try{
             const limpio=s.replace(/[^0-9+\-*/().,\s]/g,'');
+
             if(!limpio.trim()) return 0;
             const norm=limpio.replace(/,/g,'.');
             const r=Function('"use strict";return('+norm+')')();
